@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>זוכר שמות תלמידים</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f0f4f8; color: #2c2c2c; min-height: 100vh; direction: rtl; }
+
+        header {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white; padding: 14px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            position: sticky; top: 0; z-index: 100;
+        }
+        header h1 { font-size: 1.25rem; font-weight: 700; }
+        #back-btn {
+            background: rgba(255,255,255,0.2); border: none; color: white;
+            padding: 6px 14px; border-radius: 8px; cursor: pointer;
+            font-size: 0.9rem; display: none; transition: background 0.2s;
+        }
+        #back-btn:hover { background: rgba(255,255,255,0.35); }
+
+        main { max-width: 500px; margin: 0 auto; padding: 20px 16px 40px; }
+        .view { display: none; }
+        .view.active { display: block; }
+
+        /* HOME */
+        .home-stats {
+            background: white; border-radius: 14px; padding: 16px 20px;
+            margin-bottom: 16px; display: flex;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+        .home-stat { flex: 1; text-align: center; }
+        .home-stat + .home-stat { border-right: 1px solid #f3f4f6; }
+        .home-stat .count { font-size: 2rem; font-weight: 800; color: #3b82f6; line-height: 1; }
+        .home-stat .label { color: #9ca3af; font-size: 0.8rem; margin-top: 3px; }
+
+        .section-title {
+            font-size: 0.75rem; font-weight: 700; color: #9ca3af;
+            letter-spacing: 0.05em; margin: 16px 0 8px 2px;
+        }
+
+        /* Class cards */
+        .classes-list { display: flex; flex-direction: column; gap: 8px; }
+        .class-card { background: white; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; }
+        .class-card-header { padding: 13px 14px; display: flex; align-items: center; gap: 10px; }
+        .class-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .class-name { font-weight: 700; font-size: 0.95rem; flex: 1; }
+        .class-count { font-size: 0.82rem; color: #9ca3af; }
+        .class-rename-btn {
+            background: none; border: none; cursor: pointer; font-size: 0.85rem;
+            color: #d1d5db; padding: 2px 6px; border-radius: 6px;
+            transition: color 0.15s, background 0.15s;
+        }
+        .class-rename-btn:hover { color: #6b7280; background: #f3f4f6; }
+
+        .class-card-actions { border-top: 1px solid #f3f4f6; display: flex; }
+        .class-action-btn {
+            flex: 1; padding: 10px 12px; border: none; background: none;
+            cursor: pointer; font-size: 0.83rem; font-weight: 600; color: #6b7280;
+            font-family: inherit; transition: background 0.15s, color 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+        }
+        .class-action-btn:hover { background: #f9fafb; }
+        .class-action-btn.gallery-btn:hover { color: #3b82f6; }
+        .class-action-btn.quiz-btn-sm:hover  { color: #f59e0b; }
+        .class-action-btn.disabled { color: #d1d5db; cursor: not-allowed; }
+        .class-action-btn.disabled:hover { background: none; color: #d1d5db; }
+        .class-sep { width: 1px; background: #f3f4f6; flex-shrink: 0; }
+
+        .all-row {
+            background: white; border-radius: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            display: flex; overflow: hidden; margin-top: 4px;
+        }
+        .all-row .class-action-btn { padding: 13px 12px; font-size: 0.88rem; }
+
+        .action-buttons { display: flex; flex-direction: column; gap: 10px; }
+        .menu-btn {
+            padding: 14px 20px; border: none; border-radius: 14px;
+            cursor: pointer; font-size: 0.95rem; font-weight: 700;
+            display: flex; align-items: center; gap: 12px;
+            transition: transform 0.12s, box-shadow 0.12s;
+            direction: rtl; font-family: inherit;
+        }
+        .menu-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+        .menu-btn:active { transform: translateY(0); }
+        .menu-btn .icon { font-size: 1.3rem; }
+        .btn-add      { background: #10b981; color: white; }
+        .btn-bulk     { background: #8b5cf6; color: white; }
+        .btn-quiz     { background: #f59e0b; color: white; }
+        .btn-gallery  { background: #3b82f6; color: white; }
+        .btn-back-home{ background: #6b7280; color: white; }
+        .btn-export   { background: #0d9488; color: white; }
+        .class-clear-btn {
+            background: none; border: none; cursor: pointer; font-size: 0.85rem;
+            color: #d1d5db; padding: 2px 6px; border-radius: 6px;
+            transition: color 0.15s, background 0.15s;
+        }
+        .class-clear-btn:hover { color: #ef4444; background: #fef2f2; }
+
+        /* FORMS */
+        .photo-upload-area {
+            border: 2px dashed #3b82f6; border-radius: 14px; padding: 24px 16px;
+            text-align: center; cursor: pointer; margin-bottom: 16px; background: white;
+            transition: background 0.2s; min-height: 160px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .photo-upload-area:hover { background: #eff6ff; }
+        .photo-upload-area img { max-width: 100%; max-height: 220px; border-radius: 10px; object-fit: cover; }
+        .photo-placeholder { color: #9ca3af; }
+        .photo-placeholder .upload-icon { font-size: 3.5rem; display: block; margin-bottom: 8px; }
+        .photo-placeholder .upload-text { font-size: 0.95rem; }
+        .photo-placeholder .upload-sub  { font-size: 0.78rem; margin-top: 4px; color: #c0c0c0; }
+        input[type="file"] { display: none; }
+
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #374151; }
+        .form-group label .optional { font-weight: 400; color: #9ca3af; font-size: 0.85rem; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb;
+            border-radius: 10px; font-size: 1rem; direction: rtl;
+            font-family: inherit; background: white;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+        }
+        .new-class-wrap { margin-top: 8px; display: none; }
+
+        .btn-primary {
+            width: 100%; padding: 14px; background: #10b981; color: white;
+            border: none; border-radius: 12px; font-size: 1.05rem; font-weight: 700;
+            cursor: pointer; font-family: inherit; transition: background 0.2s, transform 0.12s;
+        }
+        .btn-primary:hover { background: #059669; transform: translateY(-1px); }
+
+        /* BULK */
+        .bulk-drop-area {
+            border: 2px dashed #8b5cf6; border-radius: 14px; padding: 28px 16px;
+            text-align: center; cursor: pointer; background: white;
+            transition: background 0.2s; margin-bottom: 16px;
+        }
+        .bulk-drop-area:hover { background: #f5f3ff; }
+        .bulk-drop-area .upload-icon { font-size: 3rem; display: block; margin-bottom: 8px; }
+        .bulk-drop-area .upload-text { font-size: 1rem; color: #6b7280; }
+        .bulk-drop-area .upload-sub  { font-size: 0.8rem; color: #c0c0c0; margin-top: 4px; }
+        .bulk-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+        .bulk-item {
+            background: white; border-radius: 12px; padding: 10px 12px;
+            display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+        }
+        .bulk-item img { width: 56px; height: 56px; object-fit: cover; object-position: top; border-radius: 8px; flex-shrink: 0; }
+        .bulk-item input { flex: 1; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 0.95rem; direction: rtl; font-family: inherit; }
+        .bulk-item input:focus { outline: none; border-color: #8b5cf6; }
+        .bulk-item .remove-btn { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #ef4444; flex-shrink: 0; padding: 4px; }
+        .btn-bulk-save {
+            width: 100%; padding: 14px; background: #8b5cf6; color: white;
+            border: none; border-radius: 12px; font-size: 1.05rem; font-weight: 700;
+            cursor: pointer; font-family: inherit; transition: background 0.2s;
+        }
+        .btn-bulk-save:hover { background: #7c3aed; }
+
+        /* GALLERY */
+        .gallery-class-label {
+            font-size: 0.78rem; font-weight: 700; color: #9ca3af;
+            margin: 0 0 8px 2px; display: flex; align-items: center; gap: 6px;
+        }
+        .gallery-class-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+        .student-card {
+            background: white; border-radius: 14px; overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07); cursor: pointer;
+            transition: transform 0.12s, box-shadow 0.12s;
+        }
+        .student-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+        .student-card img { width: 100%; height: 150px; object-fit: cover; object-position: top; }
+        .student-card .card-name { padding: 8px 10px 4px; font-weight: 700; font-size: 0.9rem; text-align: center; }
+        .student-card .card-stats { padding: 0 10px 8px; text-align: center; font-size: 0.75rem; color: #9ca3af; }
+        .empty-state { text-align: center; padding: 50px 20px; color: #9ca3af; }
+        .empty-state .empty-icon { font-size: 4rem; margin-bottom: 12px; }
+
+        /* DETAIL */
+        .student-detail-photo {
+            width: 100%; max-height: 360px; object-fit: contain;
+            border-radius: 14px; margin-bottom: 14px; background: #f3f4f6;
+        }
+        .detail-name-row {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+        }
+        .detail-name { font-size: 1.5rem; font-weight: 800; flex: 1; }
+        .detail-name-input {
+            flex: 1; font-size: 1.3rem; font-weight: 700;
+            border: 2px solid #3b82f6; border-radius: 8px;
+            padding: 4px 10px; direction: rtl; font-family: inherit;
+        }
+        .edit-name-btn {
+            background: none; border: none; cursor: pointer; font-size: 1rem;
+            color: #d1d5db; padding: 4px 8px; border-radius: 8px;
+            transition: color 0.15s, background 0.15s; flex-shrink: 0;
+        }
+        .edit-name-btn:hover { color: #3b82f6; background: #eff6ff; }
+
+        .detail-class-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 20px;
+            font-size: 0.8rem; font-weight: 600; color: white; margin-bottom: 14px;
+        }
+        .association-box {
+            background: #fffbeb; border-right: 4px solid #f59e0b;
+            padding: 12px 14px; border-radius: 0 10px 10px 0; margin-bottom: 14px;
+        }
+        .association-box .assoc-label { font-size: 0.78rem; color: #9ca3af; margin-bottom: 4px; }
+        .association-box .assoc-text  { font-weight: 500; line-height: 1.4; }
+
+        .stats-row { display: flex; gap: 10px; margin-bottom: 16px; }
+        .stat-box {
+            flex: 1; background: white; border-radius: 12px; padding: 14px;
+            text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+        }
+        .stat-box .stat-num { font-size: 1.8rem; font-weight: 800; }
+        .stat-box.correct .stat-num { color: #10b981; }
+        .stat-box.wrong .stat-num   { color: #ef4444; }
+        .stat-box .stat-label { font-size: 0.75rem; color: #9ca3af; margin-top: 2px; }
+        .btn-danger {
+            width: 100%; padding: 13px; background: white; color: #ef4444;
+            border: 2px solid #ef4444; border-radius: 12px; font-size: 1rem;
+            font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.2s;
+        }
+        .btn-danger:hover { background: #fef2f2; }
+
+        /* QUIZ */
+        .quiz-class-wrap { text-align: center; margin-bottom: 4px; }
+        .quiz-class-badge {
+            display: none; padding: 4px 12px; border-radius: 20px; color: white;
+            font-size: 0.8rem; font-weight: 600;
+        }
+        .quiz-progress-bar-wrap { background: #e5e7eb; border-radius: 99px; height: 6px; margin-bottom: 12px; overflow: hidden; }
+        .quiz-progress-bar { height: 100%; background: linear-gradient(90deg, #3b82f6, #1d4ed8); border-radius: 99px; transition: width 0.4s ease; }
+        .quiz-progress-text { text-align: center; color: #9ca3af; font-size: 0.85rem; margin-bottom: 14px; }
+        .quiz-photo { width: 100%; max-height: 300px; object-fit: contain; border-radius: 14px; margin-bottom: 18px; background: #f3f4f6; }
+        .quiz-question { text-align: center; font-size: 1.05rem; font-weight: 600; margin-bottom: 14px; color: #374151; }
+        .quiz-options { display: flex; flex-direction: column; gap: 10px; }
+        .quiz-option {
+            padding: 13px 20px; border: 2px solid #e5e7eb; border-radius: 12px;
+            cursor: pointer; font-size: 1rem; font-weight: 600; background: white;
+            transition: all 0.15s; text-align: center; font-family: inherit; width: 100%;
+        }
+        .quiz-option:hover:not(:disabled) { border-color: #3b82f6; background: #eff6ff; }
+        .quiz-option.correct { border-color: #10b981; background: #d1fae5; color: #065f46; }
+        .quiz-option.wrong   { border-color: #ef4444; background: #fee2e2; color: #991b1b; }
+        .quiz-option:disabled { cursor: default; }
+        .result-panel { margin-top: 16px; padding: 16px; border-radius: 14px; text-align: center; }
+        .result-panel.correct-result { background: #d1fae5; border: 2px solid #10b981; }
+        .result-panel.wrong-result   { background: #fee2e2; border: 2px solid #ef4444; }
+        .result-emoji { font-size: 2.5rem; margin-bottom: 6px; }
+        .result-text  { font-weight: 700; font-size: 1.1rem; margin-bottom: 12px; }
+        .result-association { background: white; border-radius: 10px; padding: 10px 12px; text-align: right; margin-top: 6px; }
+        .result-association .assoc-label { font-size: 0.75rem; color: #9ca3af; margin-bottom: 4px; }
+        .result-association .assoc-body  { font-size: 0.9rem; line-height: 1.4; }
+        .btn-next {
+            width: 100%; margin-top: 14px; padding: 14px; background: #3b82f6; color: white;
+            border: none; border-radius: 12px; font-size: 1rem; font-weight: 700;
+            cursor: pointer; font-family: inherit; transition: background 0.2s, transform 0.12s;
+        }
+        .btn-next:hover { background: #1d4ed8; transform: translateY(-1px); }
+
+        /* SUMMARY */
+        .summary-card {
+            background: white; border-radius: 18px; padding: 32px 20px;
+            margin-bottom: 20px; text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+        .summary-emoji { font-size: 4.5rem; margin-bottom: 12px; }
+        .summary-score-num { font-size: 3rem; font-weight: 800; color: #3b82f6; }
+        .summary-score-label { color: #6b7280; margin-top: 6px; font-size: 0.95rem; }
+        .summary-breakdown { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
+        .sb-item { font-size: 0.9rem; font-weight: 600; }
+        .sb-item.correct { color: #10b981; }
+        .sb-item.wrong   { color: #ef4444; }
+
+        .assoc-add-btn {
+            background: none; border: 1.5px dashed #f59e0b; color: #f59e0b;
+            padding: 8px 14px; border-radius: 10px; cursor: pointer;
+            font-size: 0.88rem; font-family: inherit; width: 100%;
+            margin-bottom: 14px; transition: background 0.15s;
+        }
+        .assoc-add-btn:hover { background: #fffbeb; }
+
+        /* REVERSE QUIZ */
+        .rquiz-name-card {
+            background: white; border-radius: 14px; padding: 18px 20px;
+            text-align: center; margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+        .rquiz-name-label { font-size: 0.85rem; color: #9ca3af; margin-bottom: 6px; }
+        .rquiz-name { font-size: 1.9rem; font-weight: 800; color: #1d4ed8; line-height: 1.2; }
+        .rquiz-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 7px; margin-bottom: 14px;
+        }
+        .rquiz-photo-card {
+            border-radius: 10px; overflow: hidden; cursor: pointer;
+            border: 3px solid transparent;
+            transition: transform 0.12s, border-color 0.2s, box-shadow 0.2s;
+            position: relative; background: #f3f4f6;
+        }
+        .rquiz-photo-card:hover:not(.answered) {
+            transform: scale(1.04); border-color: #ec4899;
+            box-shadow: 0 4px 12px rgba(236,72,153,0.3);
+        }
+        .rquiz-photo-card img {
+            width: 100%; aspect-ratio: 1; object-fit: cover;
+            object-position: top; display: block;
+        }
+        .rquiz-photo-card.correct { border-color: #10b981; box-shadow: 0 0 0 2px #10b981; }
+        .rquiz-photo-card.wrong   { border-color: #ef4444; box-shadow: 0 0 0 2px #ef4444; }
+        .rquiz-photo-card.revealed { border-color: #10b981; box-shadow: 0 0 0 2px #10b981; opacity: 0.7; }
+        .rquiz-photo-card.answered { cursor: default; }
+        .rquiz-name-overlay {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: rgba(0,0,0,0.68); color: white;
+            font-size: 0.65rem; font-weight: 700; padding: 3px 4px;
+            text-align: center; line-height: 1.3;
+        }
+        .rquiz-photo-card.correct .rquiz-name-overlay { background: rgba(16,185,129,0.9); }
+        .rquiz-photo-card.wrong   .rquiz-name-overlay { background: rgba(239,68,68,0.9); }
+        .rquiz-photo-card.revealed .rquiz-name-overlay { background: rgba(16,185,129,0.8); }
+        .class-action-btn.rquiz-btn-sm:hover { color: #ec4899; }
+
+        /* TOAST */
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            background: #1f2937; color: white; padding: 10px 22px; border-radius: 10px;
+            font-size: 0.9rem; opacity: 0; transition: opacity 0.3s; z-index: 999;
+            pointer-events: none; white-space: nowrap;
+        }
+        #toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<header>
+    <button id="back-btn" onclick="goBack()">→ חזור</button>
+    <h1 id="header-title">🎓 זוכר שמות</h1>
+    <div style="width:70px"></div>
+</header>
+
+<main>
+
+    <!-- HOME -->
+    <div id="view-home" class="view active">
+        <div class="home-stats">
+            <div class="home-stat">
+                <div class="count" id="stat-students">0</div>
+                <div class="label">תלמידים</div>
+            </div>
+            <div class="home-stat">
+                <div class="count" id="stat-classes">0</div>
+                <div class="label">כיתות</div>
+            </div>
+        </div>
+        <div class="section-title">כיתות</div>
+        <div class="classes-list" id="classes-list"></div>
+        <div class="section-title">פעולות</div>
+        <div class="action-buttons">
+            <button class="menu-btn btn-add" onclick="showView('add')">
+                <span class="icon">➕</span> הוסף תלמיד יחיד
+            </button>
+            <button class="menu-btn btn-bulk" onclick="showView('bulk')">
+                <span class="icon">📁</span> העלה קבוצת תמונות
+            </button>
+            <button class="menu-btn btn-export" onclick="exportList()">
+                <span class="icon">📤</span> ייצוא רשימת תלמידים
+            </button>
+        </div>
+    </div>
+
+    <!-- ADD STUDENT -->
+    <div id="view-add" class="view">
+        <div class="photo-upload-area" onclick="document.getElementById('photo-input').click()">
+            <div class="photo-placeholder" id="photo-placeholder">
+                <span class="upload-icon">📷</span>
+                <div class="upload-text">לחץ לבחירת תמונה</div>
+                <div class="upload-sub">JPG · PNG · WEBP</div>
+            </div>
+            <img id="photo-preview" style="display:none" alt="">
+        </div>
+        <input type="file" id="photo-input" accept="image/*" onchange="handlePhoto(event)">
+        <div class="form-group">
+            <label>שם מלא</label>
+            <input type="text" id="input-name" placeholder="שם פרטי ושם משפחה">
+        </div>
+        <div class="form-group">
+            <label>כיתה</label>
+            <select id="input-class" onchange="onClassSelectChange('input-class','new-class-wrap')">
+                <option value="">ללא שיוך לכיתה</option>
+            </select>
+            <div class="new-class-wrap" id="new-class-wrap">
+                <input type="text" id="input-new-class" placeholder="שם הכיתה החדשה (לדוג׳: כיתה ג׳)">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>רעיון אסוציאטיבי <span class="optional">(אופציונלי)</span></label>
+            <textarea id="input-assoc" placeholder="אסוציאציה שתעזור לזכור את השם..."></textarea>
+        </div>
+        <button class="btn-primary" onclick="saveStudent()">💾 שמור תלמיד</button>
+    </div>
+
+    <!-- BULK UPLOAD -->
+    <div id="view-bulk" class="view">
+        <div class="form-group">
+            <label>כיתה לכל התמונות</label>
+            <select id="bulk-class" onchange="onClassSelectChange('bulk-class','bulk-new-class-wrap')">
+                <option value="">ללא שיוך לכיתה</option>
+            </select>
+            <div class="new-class-wrap" id="bulk-new-class-wrap">
+                <input type="text" id="bulk-new-class" placeholder="שם הכיתה החדשה">
+            </div>
+        </div>
+        <div class="bulk-drop-area" onclick="document.getElementById('bulk-input').click()">
+            <span class="upload-icon">📁</span>
+            <div class="upload-text">לחץ לבחירת תמונות מרובות</div>
+            <div class="upload-sub">בחר קבצים רבים בבת אחת · השם ייקרא משם הקובץ</div>
+        </div>
+        <input type="file" id="bulk-input" accept="image/*" multiple onchange="handleBulkPhotos(event)">
+        <div class="bulk-list" id="bulk-list"></div>
+        <button class="btn-bulk-save" id="bulk-save-btn" style="display:none" onclick="saveBulk()">💾 שמור את כל התלמידים</button>
+    </div>
+
+    <!-- GALLERY -->
+    <div id="view-gallery" class="view">
+        <div id="gallery-content"></div>
+    </div>
+
+    <!-- STUDENT DETAIL -->
+    <div id="view-detail" class="view">
+        <img id="detail-photo" class="student-detail-photo" alt="">
+        <div class="detail-name-row">
+            <div class="detail-name" id="detail-name"></div>
+            <button class="edit-name-btn" onclick="startEditName()" title="ערוך שם">✏️</button>
+        </div>
+        <div id="detail-class-badge" class="detail-class-badge" style="display:none"></div>
+        <div id="detail-assoc-box" class="association-box" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div class="assoc-label">💡 אסוציאציה לזכירת השם:</div>
+                <button class="edit-name-btn" onclick="startEditAssoc()" title="ערוך">✏️</button>
+            </div>
+            <div class="assoc-text" id="detail-assoc-text"></div>
+            <div id="edit-assoc-area" style="display:none;margin-top:8px;">
+                <textarea id="edit-assoc-input" style="width:100%;padding:8px 10px;border:1.5px solid #f59e0b;border-radius:8px;font-family:inherit;font-size:0.9rem;direction:rtl;min-height:70px;resize:vertical;box-sizing:border-box;" placeholder="רעיון שיעזור לזכור את השם..."></textarea>
+                <button onclick="saveEditAssoc()" style="margin-top:6px;width:100%;padding:9px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;">שמור</button>
+            </div>
+        </div>
+        <button id="assoc-add-btn" class="assoc-add-btn" style="display:none" onclick="startEditAssoc()">➕ הוסף רעיון לזכירת השם</button>
+        <div class="stats-row">
+            <div class="stat-box correct">
+                <div class="stat-num" id="detail-correct">0</div>
+                <div class="stat-label">✓ נכון</div>
+            </div>
+            <div class="stat-box wrong">
+                <div class="stat-num" id="detail-wrong">0</div>
+                <div class="stat-label">✗ טעות</div>
+            </div>
+        </div>
+        <button class="btn-danger" onclick="deleteStudent()">🗑️ מחק תלמיד</button>
+    </div>
+
+    <!-- QUIZ -->
+    <div id="view-quiz" class="view">
+        <div class="quiz-class-wrap">
+            <span id="quiz-class-badge" class="quiz-class-badge"></span>
+        </div>
+        <div class="quiz-progress-bar-wrap">
+            <div class="quiz-progress-bar" id="quiz-progress-bar" style="width:0%"></div>
+        </div>
+        <div class="quiz-progress-text" id="quiz-progress-text">שאלה 1</div>
+        <img id="quiz-photo" class="quiz-photo" alt="">
+        <div class="quiz-question">מי התלמיד/ה בתמונה?</div>
+        <div class="quiz-options" id="quiz-options"></div>
+        <div id="result-panel" style="display:none"></div>
+        <button id="btn-next" class="btn-next" style="display:none" onclick="nextQuestion()">השאלה הבאה ←</button>
+    </div>
+
+    <!-- REVERSE QUIZ -->
+    <div id="view-rquiz" class="view">
+        <div class="quiz-class-wrap">
+            <span id="rquiz-class-badge" class="quiz-class-badge"></span>
+        </div>
+        <div class="quiz-progress-bar-wrap">
+            <div class="quiz-progress-bar" id="rquiz-progress-bar" style="width:0%"></div>
+        </div>
+        <div class="quiz-progress-text" id="rquiz-progress-text">שאלה 1</div>
+        <div class="rquiz-name-card">
+            <div class="rquiz-name-label">מצא/י בתמונות את:</div>
+            <div class="rquiz-name" id="rquiz-name"></div>
+        </div>
+        <div class="rquiz-grid" id="rquiz-grid"></div>
+        <div id="rquiz-result-panel" style="display:none"></div>
+        <button id="rquiz-btn-next" class="btn-next" style="display:none" onclick="rquizNext()">השאלה הבאה ←</button>
+    </div>
+
+    <!-- SUMMARY -->
+    <div id="view-summary" class="view">
+        <div class="summary-card">
+            <div class="summary-emoji" id="summary-emoji">🎉</div>
+            <div class="summary-score-num" id="summary-score-num"></div>
+            <div class="summary-score-label" id="summary-score-label"></div>
+            <div class="summary-breakdown">
+                <span class="sb-item correct" id="summary-correct"></span>
+                <span style="color:#d1d5db">|</span>
+                <span class="sb-item wrong" id="summary-wrong"></span>
+            </div>
+        </div>
+        <div class="action-buttons">
+            <button class="menu-btn btn-quiz" onclick="quizAgain()"><span class="icon">🔄</span> מבחן נוסף</button>
+            <button class="menu-btn btn-gallery" onclick="galleryAgain()"><span class="icon">📋</span> רשימת תלמידים</button>
+            <button class="menu-btn btn-back-home" onclick="showView('home')"><span class="icon">🏠</span> תפריט ראשי</button>
+        </div>
+    </div>
+
+</main>
+<div id="toast"></div>
+
+<script>
+// ===== CONSTANTS =====
+const CLASS_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+const NEW_CLASS_OPT = '__new__';
+const fakeNames = [
+    'אברהם כהן','שרה לוי','יעקב גולד','רחל ברגמן','משה פרידמן',
+    'מרים ישראלי','דוד אזולאי','חנה שפירא','יוסף ביטון','לאה שמש',
+    'אייל רוזנברג','נועה בן דוד','עמי גרוס','תמר חדד','ניר פרץ',
+    'גלית מזרחי','ארי שלום','רות ניסים','ידידיה אוחיון','שירה כץ'
+];
+
+// ===== DATA =====
+let students = JSON.parse(localStorage.getItem('students') || '[]');
+students.forEach(s => { if (s.className === undefined) s.className = ''; });
+
+function saveData() {
+    try { localStorage.setItem('students', JSON.stringify(students)); }
+    catch(e) { showToast('⚠️ אין מספיק מקום — נסה למחוק תלמידים ישנים'); }
+}
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+function getClasses() { return [...new Set(students.map(s => s.className).filter(Boolean))].sort(); }
+function classColor(name) {
+    if (!name) return '#9ca3af';
+    const idx = getClasses().indexOf(name);
+    return CLASS_COLORS[Math.max(0, idx) % CLASS_COLORS.length];
+}
+
+// ===== NAVIGATION =====
+let navStack = ['home'];
+function showView(name, title) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    const titles = { home:'🎓 זוכר שמות', add:'➕ הוסף תלמיד', bulk:'📁 העלאת קבוצה', gallery:'📋 תלמידים', detail:'👤 פרופיל', quiz:'📝 מבחן', rquiz:'🔍 מצא בתמונה', summary:'📊 תוצאות' };
+    document.getElementById('header-title').textContent = title || titles[name] || '';
+    document.getElementById('back-btn').style.display = name === 'home' ? 'none' : 'block';
+    if (name === 'home') { navStack = ['home']; renderHome(); }
+    else navStack.push(name);
+}
+function goBack() {
+    navStack.pop();
+    const prev = navStack[navStack.length - 1] || 'home';
+    navStack.pop();
+    showView(prev);
+}
+
+// ===== HOME =====
+function renderHome() {
+    const classes = getClasses();
+    document.getElementById('stat-students').textContent = students.length;
+    document.getElementById('stat-classes').textContent  = classes.length;
+
+    const list = document.getElementById('classes-list');
+    list.innerHTML = '';
+
+    if (students.length === 0) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">🏫</div><div>אין תלמידים עדיין</div></div>';
+        populateClassSelect('input-class');
+        populateClassSelect('bulk-class');
+        return;
+    }
+
+    // Build class cards using DOM (not innerHTML) to avoid Hebrew onclick encoding issues
+    const uncategorized = students.filter(s => !s.className);
+    const allGroups = [...classes.map(c => ({ key: c, isNone: false }))];
+    if (uncategorized.length > 0) allGroups.push({ key: null, isNone: true });
+
+    allGroups.forEach(({ key, isNone }) => {
+        const displayName = isNone ? 'ללא כיתה' : key;
+        const color       = isNone ? '#9ca3af' : classColor(key);
+        const count       = students.filter(s => isNone ? !s.className : s.className === key).length;
+        const canQuiz     = count >= 2;
+
+        const card = document.createElement('div');
+        card.className = 'class-card';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'class-card-header';
+
+        const dot = document.createElement('div');
+        dot.className = 'class-dot';
+        dot.style.background = color;
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'class-name';
+        nameEl.textContent = displayName;
+
+        const countEl = document.createElement('div');
+        countEl.className = 'class-count';
+        countEl.textContent = `${count} תלמידים`;
+
+        header.appendChild(dot);
+        header.appendChild(nameEl);
+        header.appendChild(countEl);
+
+        // Rename + clear buttons (only for real classes, not uncategorized)
+        if (!isNone) {
+            const renameBtn = document.createElement('button');
+            renameBtn.className = 'class-rename-btn';
+            renameBtn.textContent = '✏️';
+            renameBtn.title = 'שנה שם כיתה';
+            renameBtn.onclick = (e) => { e.stopPropagation(); renameClass(key); };
+            header.appendChild(renameBtn);
+
+            const clearBtn = document.createElement('button');
+            clearBtn.className = 'class-clear-btn';
+            clearBtn.textContent = '🗑️';
+            clearBtn.title = 'מחק את כל תלמידי הכיתה';
+            clearBtn.onclick = (e) => { e.stopPropagation(); clearClass(key); };
+            header.appendChild(clearBtn);
+        }
+
+        card.appendChild(header);
+
+        // Actions row
+        const actions = document.createElement('div');
+        actions.className = 'class-card-actions';
+
+        const galleryBtn = document.createElement('button');
+        galleryBtn.className = 'class-action-btn gallery-btn';
+        galleryBtn.innerHTML = '📋 גלריה';
+        galleryBtn.onclick = () => showGallery(isNone ? null : key);
+
+        const sep = document.createElement('div');
+        sep.className = 'class-sep';
+
+        const quizBtn = document.createElement('button');
+        quizBtn.className = `class-action-btn quiz-btn-sm${canQuiz ? '' : ' disabled'}`;
+        quizBtn.innerHTML = '📝 מבחן';
+        if (canQuiz) quizBtn.onclick = () => startQuiz(isNone ? null : key);
+
+        const sep2 = document.createElement('div');
+        sep2.className = 'class-sep';
+
+        const rquizBtn = document.createElement('button');
+        rquizBtn.className = `class-action-btn rquiz-btn-sm${canQuiz ? '' : ' disabled'}`;
+        rquizBtn.innerHTML = '🔍 הפוך';
+        if (canQuiz) rquizBtn.onclick = () => startRQuiz(isNone ? null : key);
+
+        actions.appendChild(galleryBtn);
+        actions.appendChild(sep);
+        actions.appendChild(quizBtn);
+        actions.appendChild(sep2);
+        actions.appendChild(rquizBtn);
+        card.appendChild(actions);
+        list.appendChild(card);
+    });
+
+    // All students row
+    const allRow = document.createElement('div');
+    allRow.className = 'all-row';
+    const canAll = students.length >= 2;
+
+    const allGallery = document.createElement('button');
+    allGallery.className = 'class-action-btn gallery-btn';
+    allGallery.innerHTML = `👥 כל (${students.length})`;
+    allGallery.onclick = () => showGallery(undefined);
+
+    const allSep = document.createElement('div');
+    allSep.className = 'class-sep';
+
+    const allQuiz = document.createElement('button');
+    allQuiz.className = `class-action-btn quiz-btn-sm${canAll ? '' : ' disabled'}`;
+    allQuiz.innerHTML = '📝 מבחן';
+    if (canAll) allQuiz.onclick = () => startQuiz(undefined);
+
+    const allSep2 = document.createElement('div');
+    allSep2.className = 'class-sep';
+
+    const allRquiz = document.createElement('button');
+    allRquiz.className = `class-action-btn rquiz-btn-sm${canAll ? '' : ' disabled'}`;
+    allRquiz.innerHTML = '🔍 הפוך';
+    if (canAll) allRquiz.onclick = () => startRQuiz(undefined);
+
+    allRow.appendChild(allGallery);
+    allRow.appendChild(allSep);
+    allRow.appendChild(allQuiz);
+    allRow.appendChild(allSep2);
+    allRow.appendChild(allRquiz);
+    list.appendChild(allRow);
+
+    populateClassSelect('input-class');
+    populateClassSelect('bulk-class');
+}
+
+function populateClassSelect(selectId) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">ללא שיוך לכיתה</option>';
+    getClasses().forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = cls; opt.textContent = cls;
+        sel.appendChild(opt);
+    });
+    const newOpt = document.createElement('option');
+    newOpt.value = NEW_CLASS_OPT; newOpt.textContent = '+ כיתה חדשה...';
+    sel.appendChild(newOpt);
+    if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+
+function onClassSelectChange(selectId, wrapId) {
+    const sel = document.getElementById(selectId);
+    document.getElementById(wrapId).style.display = sel.value === NEW_CLASS_OPT ? 'block' : 'none';
+}
+
+function getSelectedClass(selectId, newInputId) {
+    const sel = document.getElementById(selectId);
+    if (sel.value === NEW_CLASS_OPT) return document.getElementById(newInputId).value.trim();
+    return sel.value;
+}
+
+// ===== RENAME CLASS =====
+function renameClass(oldName) {
+    const newName = prompt(`שנה שם כיתה:\nשם נוכחי: "${oldName}"`, oldName);
+    if (!newName || newName.trim() === oldName || !newName.trim()) return;
+    const trimmed = newName.trim();
+    students.forEach(s => { if (s.className === oldName) s.className = trimmed; });
+    saveData();
+    renderHome();
+    showToast(`✅ הכיתה שונתה ל"${trimmed}"`);
+}
+
+// ===== IMAGE UTILS =====
+function resizeImage(dataUrl, callback) {
+    const img = new Image();
+    img.onload = () => {
+        const MAX = 600;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else       { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        callback(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    img.src = dataUrl;
+}
+function nameFromFilename(f) { return f.replace(/\.[^.]+$/, '').replace(/[_\-]+/g, ' ').trim(); }
+
+// ===== ADD STUDENT =====
+let photoData = null;
+function handlePhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+        resizeImage(ev.target.result, resized => {
+            photoData = resized;
+            document.getElementById('photo-preview').src = resized;
+            document.getElementById('photo-preview').style.display = 'block';
+            document.getElementById('photo-placeholder').style.display = 'none';
+        });
+    };
+    reader.readAsDataURL(file);
+    const nameInput = document.getElementById('input-name');
+    if (!nameInput.value) nameInput.value = nameFromFilename(file.name);
+}
+
+function saveStudent() {
+    const name      = document.getElementById('input-name').value.trim();
+    const assoc     = document.getElementById('input-assoc').value.trim();
+    const className = getSelectedClass('input-class', 'input-new-class');
+    if (!name)      { showToast('⚠️ אנא הכנס שם תלמיד'); return; }
+    if (!photoData) { showToast('⚠️ אנא העלה תמונה'); return; }
+
+    students.push({ id: generateId(), name, photo: photoData, association: assoc, className, correct: 0, wrong: 0 });
+    saveData();
+
+    photoData = null;
+    document.getElementById('photo-preview').style.display = 'none';
+    document.getElementById('photo-placeholder').style.display = 'block';
+    document.getElementById('input-name').value = '';
+    document.getElementById('input-assoc').value = '';
+    document.getElementById('photo-input').value = '';
+    document.getElementById('new-class-wrap').style.display = 'none';
+    showToast('✅ תלמיד נשמר!');
+    showView('home');
+}
+
+// ===== BULK UPLOAD =====
+let bulkItems = [];
+function handleBulkPhotos(e) {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    bulkItems = new Array(files.length);
+    document.getElementById('bulk-list').innerHTML = '';
+    document.getElementById('bulk-save-btn').style.display = 'none';
+    let loaded = 0;
+    files.forEach((file, idx) => {
+        const reader = new FileReader();
+        reader.onload = ev => {
+            resizeImage(ev.target.result, resized => {
+                bulkItems[idx] = { name: nameFromFilename(file.name), photo: resized };
+                loaded++;
+                if (loaded === files.length) renderBulkList();
+            });
+        };
+        reader.readAsDataURL(file);
+    });
+}
+function renderBulkList() {
+    const list = document.getElementById('bulk-list');
+    list.innerHTML = '';
+    bulkItems.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'bulk-item';
+        div.innerHTML = `<img src="${item.photo}" alt=""><input type="text" value="${item.name}" placeholder="שם התלמיד" oninput="bulkItems[${idx}].name=this.value"><button class="remove-btn" onclick="removeBulkItem(${idx})">✕</button>`;
+        list.appendChild(div);
+    });
+    document.getElementById('bulk-save-btn').style.display = bulkItems.length ? 'block' : 'none';
+}
+function removeBulkItem(idx) { bulkItems.splice(idx, 1); renderBulkList(); }
+function saveBulk() {
+    const className = getSelectedClass('bulk-class', 'bulk-new-class');
+    const valid = bulkItems.filter(i => i.name.trim());
+    if (!valid.length) { showToast('⚠️ אנא הכנס שמות לתלמידים'); return; }
+    valid.forEach(item => students.push({ id: generateId(), name: item.name.trim(), photo: item.photo, association: '', className, correct: 0, wrong: 0 }));
+    saveData();
+    bulkItems = [];
+    document.getElementById('bulk-list').innerHTML = '';
+    document.getElementById('bulk-save-btn').style.display = 'none';
+    document.getElementById('bulk-input').value = '';
+    document.getElementById('bulk-new-class-wrap').style.display = 'none';
+    showToast(`✅ ${valid.length} תלמידים נשמרו!`);
+    showView('home');
+}
+
+// ===== GALLERY =====
+let currentGalleryClass;
+function showGallery(cls) {
+    currentGalleryClass = cls;
+    const isAll  = cls === undefined;
+    const isNone = cls === null;
+    let filtered = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === cls);
+    const title  = isAll ? '👥 כל התלמידים' : isNone ? '📋 ללא כיתה' : `📋 ${cls}`;
+
+    const cont = document.getElementById('gallery-content');
+    cont.innerHTML = '';
+
+    if (filtered.length === 0) {
+        cont.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div>אין תלמידים בקטגוריה זו</div></div>';
+    } else if (isAll && getClasses().length > 0) {
+        // Group by class
+        const groups = {};
+        filtered.forEach(s => { const k = s.className || '__none__'; if (!groups[k]) groups[k] = []; groups[k].push(s); });
+        [...getClasses(), ...(groups['__none__'] ? ['__none__'] : [])].forEach(key => {
+            if (!groups[key]) return;
+            const isNoneGrp = key === '__none__';
+            const label = document.createElement('div');
+            label.className = 'gallery-class-label';
+            const color = isNoneGrp ? '#9ca3af' : classColor(key);
+            label.innerHTML = `<span class="gallery-class-dot" style="background:${color}"></span>${isNoneGrp ? 'ללא כיתה' : key}`;
+            cont.appendChild(label);
+            const grid = document.createElement('div');
+            grid.className = 'gallery-grid';
+            groups[key].forEach(s => grid.appendChild(makeStudentCard(s)));
+            cont.appendChild(grid);
+        });
+    } else {
+        const grid = document.createElement('div');
+        grid.className = 'gallery-grid';
+        filtered.forEach(s => grid.appendChild(makeStudentCard(s)));
+        cont.appendChild(grid);
+    }
+    showView('gallery', title);
+}
+function makeStudentCard(s) {
+    const total = s.correct + s.wrong;
+    const pct   = total > 0 ? Math.round(s.correct / total * 100) + '%' : 'טרם נבחן';
+    const card  = document.createElement('div');
+    card.className = 'student-card';
+    card.innerHTML = `<img src="${s.photo}" alt="${s.name}"><div class="card-name">${s.name}</div><div class="card-stats">${pct}</div>`;
+    card.onclick = () => showDetail(s.id);
+    return card;
+}
+
+// ===== DETAIL =====
+let currentStudentId = null;
+function showDetail(id) {
+    const s = students.find(x => x.id === id);
+    if (!s) return;
+    currentStudentId = id;
+    document.getElementById('detail-photo').src = s.photo;
+    document.getElementById('detail-name').textContent = s.name;
+    document.getElementById('detail-correct').textContent = s.correct;
+    document.getElementById('detail-wrong').textContent   = s.wrong;
+
+    const badge = document.getElementById('detail-class-badge');
+    if (s.className) {
+        badge.style.display = 'inline-block';
+        badge.style.background = classColor(s.className);
+        badge.textContent = s.className;
+    } else { badge.style.display = 'none'; }
+
+    const box = document.getElementById('detail-assoc-box');
+    const addBtn = document.getElementById('assoc-add-btn');
+    document.getElementById('edit-assoc-area').style.display = 'none';
+    document.getElementById('detail-assoc-text').style.display = '';
+    if (s.association) {
+        box.style.display = 'block';
+        addBtn.style.display = 'none';
+        document.getElementById('detail-assoc-text').textContent = s.association;
+    } else {
+        box.style.display = 'none';
+        addBtn.style.display = 'block';
+    }
+
+    showView('detail');
+}
+
+// ===== RENAME STUDENT =====
+function startEditName() {
+    const s = students.find(x => x.id === currentStudentId);
+    if (!s) return;
+    const nameEl = document.getElementById('detail-name');
+    const row = document.querySelector('.detail-name-row');
+
+    // Replace name div with input
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = s.name;
+    input.className = 'detail-name-input';
+    nameEl.replaceWith(input);
+    input.focus(); input.select();
+
+    // Hide edit button while editing
+    document.querySelector('.edit-name-btn').style.display = 'none';
+
+    const save = () => {
+        const newName = input.value.trim();
+        if (newName && newName !== s.name) {
+            s.name = newName;
+            saveData();
+            showToast('✅ שם עודכן');
+        }
+        // Restore
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'detail-name';
+        nameDiv.id = 'detail-name';
+        nameDiv.textContent = s.name;
+        input.replaceWith(nameDiv);
+        document.querySelector('.edit-name-btn').style.display = '';
+    };
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = s.name; input.blur(); }
+    });
+}
+
+// ===== EDIT ASSOCIATION =====
+function startEditAssoc() {
+    const s = students.find(x => x.id === currentStudentId);
+    if (!s) return;
+    document.getElementById('edit-assoc-input').value = s.association || '';
+    const box = document.getElementById('detail-assoc-box');
+    box.style.display = 'block';
+    document.getElementById('assoc-add-btn').style.display = 'none';
+    document.getElementById('detail-assoc-text').style.display = 'none';
+    document.getElementById('edit-assoc-area').style.display = 'block';
+    document.getElementById('edit-assoc-input').focus();
+}
+
+function saveEditAssoc() {
+    const newAssoc = document.getElementById('edit-assoc-input').value.trim();
+    const s = students.find(x => x.id === currentStudentId);
+    if (!s) return;
+    s.association = newAssoc;
+    saveData();
+    document.getElementById('edit-assoc-area').style.display = 'none';
+    document.getElementById('detail-assoc-text').style.display = '';
+    const box = document.getElementById('detail-assoc-box');
+    const addBtn = document.getElementById('assoc-add-btn');
+    if (newAssoc) {
+        box.style.display = 'block';
+        addBtn.style.display = 'none';
+        document.getElementById('detail-assoc-text').textContent = newAssoc;
+    } else {
+        box.style.display = 'none';
+        addBtn.style.display = 'block';
+    }
+    showToast('✅ אסוציאציה עודכנה!');
+}
+
+function deleteStudent() {
+    if (!confirm('למחוק את התלמיד?')) return;
+    students = students.filter(s => s.id !== currentStudentId);
+    saveData();
+    showToast('🗑️ תלמיד נמחק');
+    showGallery(currentGalleryClass);
+}
+
+// ===== CORRECT FEEDBACK =====
+const correctFeedbacks = [
+    '✅ מדהים! הזיכרון שלך חד כסכין!',
+    '🎯 פגעת בול! אתה מורה שרואה אנשים, לא מספרים!',
+    '🌟 כל הכבוד – שם שנזכר הוא ילד שמרגיש שרואים אותו!',
+    '🔥 נכון לגמרי! אתה בדרך להיות האגדה של הכיתה!',
+    '💪 יפה מאוד! כל שם שזוכרים – זה ניצחון קטן!',
+    '🧠 המוח שלך עובד מצוין! המשך כך!',
+    '🎉 נכון! הילד הזה יזכור לך את זה כל החיים!',
+    '⚡ מהיר ומדויק – מקצוען אמיתי!',
+    '👑 נכון! מורה שזוכר שמות הוא מורה שמשפיע לנצח!',
+    '🌈 יפה! עוד שם – עוד קשר אמיתי עם תלמיד!',
+    '🎵 נכון בדיוק! כמו מנגינה שחוזרת שוב ושוב בראש!',
+    '🚀 נכון! אתה טס קדימה!',
+    '💎 יקר! כל שם שזוכרים שווה זהב לתלמיד!',
+    '🌻 נכון! כמו שמש שמאירה לילד – הזכרת את שמו!',
+    '🎓 מצוין! כך נראה מורה שבאמת אכפת לו!',
+    '🕊️ נכון! קראת לו בשמו – והנשמה שלו מרגישה את זה!',
+    '🏅 מעולה! עוד ניצחון קטן על הזיכרון!',
+    '🌊 גל אחרי גל – שם אחרי שם – אתה שוחה בטוב!',
+    '✨ נכון לגמרי! השם הזה כבר חקוק אצלך פנימה!',
+    '🤝 כל הכבוד – לא רק זכרת שם, זכרת אדם!',
+];
+let lastFeedbackIdx = -1;
+function getRandomFeedback() {
+    let idx;
+    do { idx = Math.floor(Math.random() * correctFeedbacks.length); } while (idx === lastFeedbackIdx);
+    lastFeedbackIdx = idx;
+    return correctFeedbacks[idx];
+}
+
+function playCorrectSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // Two-note chime: C5 then E5
+        const notes = [523.25, 659.25];
+        notes.forEach((freq, i) => {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            const start = ctx.currentTime + i * 0.18;
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.35, start + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.6);
+            osc.start(start);
+            osc.stop(start + 0.65);
+        });
+    } catch(e) { /* audio not supported */ }
+}
+
+// ===== QUIZ =====
+let quizStudents = [], quizIndex = 0, quizCorrect = 0, quizWrong = 0;
+let currentQuizClass;
+
+function startQuiz(cls) {
+    currentQuizClass = cls;
+    const isAll  = cls === undefined;
+    const isNone = cls === null;
+    let pool = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === cls);
+    if (pool.length < 2) { showToast('נדרשים לפחות 2 תלמידים'); return; }
+
+    quizStudents = [...pool].sort(() => Math.random() - 0.5);
+    quizIndex = quizCorrect = quizWrong = 0;
+
+    const badge = document.getElementById('quiz-class-badge');
+    if (!isAll) {
+        badge.style.display = 'inline-block';
+        badge.style.background = isNone ? '#9ca3af' : classColor(cls);
+        badge.textContent = isNone ? 'ללא כיתה' : cls;
+    } else { badge.style.display = 'none'; }
+
+    showView('quiz');
+    renderQuestion();
+}
+
+function renderQuestion() {
+    const total   = quizStudents.length;
+    const student = quizStudents[quizIndex];
+    document.getElementById('quiz-progress-bar').style.width = (quizIndex / total * 100) + '%';
+    document.getElementById('quiz-progress-text').textContent = `שאלה ${quizIndex + 1} מתוך ${total}`;
+    document.getElementById('quiz-photo').src = student.photo;
+    document.getElementById('result-panel').style.display = 'none';
+    document.getElementById('btn-next').style.display = 'none';
+
+    const opts = buildOptions(student);
+    const cont = document.getElementById('quiz-options');
+    cont.innerHTML = '';
+    opts.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'quiz-option';
+        btn.textContent = opt.name;
+        btn.dataset.id  = opt.id || '';
+        btn.onclick = () => selectAnswer(btn, student);
+        cont.appendChild(btn);
+    });
+}
+
+function buildOptions(correct) {
+    const opts = [{ id: correct.id, name: correct.name }];
+    students.filter(s => s.id !== correct.id).sort(() => Math.random() - 0.5).slice(0, 3).forEach(s => opts.push({ id: s.id, name: s.name }));
+    const used = new Set(opts.map(o => o.name));
+    fakeNames.filter(n => !used.has(n)).sort(() => Math.random() - 0.5).forEach(n => { if (opts.length < 4) opts.push({ id: null, name: n }); });
+    return opts.sort(() => Math.random() - 0.5);
+}
+
+function selectAnswer(btn, student) {
+    document.querySelectorAll('.quiz-option').forEach(b => { b.disabled = true; if (b.dataset.id === student.id) b.classList.add('correct'); });
+    const isCorrect = btn.dataset.id === student.id;
+    if (!isCorrect) btn.classList.add('wrong');
+    const s = students.find(x => x.id === student.id);
+    if (isCorrect) { quizCorrect++; s.correct++; } else { quizWrong++; s.wrong++; }
+    saveData();
+
+    const panel = document.getElementById('result-panel');
+    panel.style.display = 'block';
+    const assocHtml = student.association ? `<div class="result-association"><div class="assoc-label">💡 אסוציאציה:</div><div class="assoc-body">${student.association}</div></div>` : '';
+    panel.className = `result-panel ${isCorrect ? 'correct' : 'wrong'}-result`;
+    if (isCorrect) {
+        playCorrectSound();
+        const feedback = getRandomFeedback();
+        panel.innerHTML = `<div class="result-text" style="font-size:1rem;margin-bottom:8px">${feedback}</div><div style="font-size:0.9rem;color:#065f46;margin-bottom:10px">זה <strong>${student.name}</strong></div>${assocHtml}`;
+    } else {
+        panel.innerHTML = `<div class="result-emoji">❌</div><div class="result-text">לא נכון — זה <strong>${student.name}</strong></div>${assocHtml}`;
+    }
+
+    const nextBtn = document.getElementById('btn-next');
+    if (isCorrect) {
+        nextBtn.style.display = 'none';
+        setTimeout(nextQuestion, 2000);
+    } else {
+        nextBtn.style.display = 'block';
+        nextBtn.textContent = quizIndex === quizStudents.length - 1 ? 'סיים מבחן ←' : 'השאלה הבאה ←';
+    }
+}
+
+function nextQuestion() { quizIndex++; if (quizIndex >= quizStudents.length) showSummary('quiz'); else renderQuestion(); }
+function quizAgain()    { if (lastQuizMode === 'rquiz') startRQuiz(currentRQuizClass); else startQuiz(currentQuizClass); }
+function galleryAgain() { showGallery(lastQuizMode === 'rquiz' ? currentRQuizClass : currentQuizClass); }
+
+let lastQuizMode = 'quiz';
+function showSummary(mode) {
+    lastQuizMode = mode || 'quiz';
+    const correct = lastQuizMode === 'rquiz' ? rquizCorrect : quizCorrect;
+    const wrong   = lastQuizMode === 'rquiz' ? rquizWrong   : quizWrong;
+    const total   = lastQuizMode === 'rquiz' ? rquizStudents.length : quizStudents.length;
+    const pct     = Math.round(correct / total * 100);
+    const emojis  = [[100,'🏆'],[80,'🎉'],[60,'👍'],[40,'💪'],[0,'📚']];
+    const emoji   = emojis.find(([t]) => pct >= t)[1];
+    document.getElementById('summary-emoji').textContent       = emoji;
+    document.getElementById('summary-score-num').textContent   = `${correct}/${total}`;
+    document.getElementById('summary-score-label').textContent = `${pct}% הצלחה`;
+    document.getElementById('summary-correct').textContent     = `✓ ${correct} נכון`;
+    document.getElementById('summary-wrong').textContent       = `✗ ${wrong} טעות`;
+    showView('summary');
+}
+
+// ===== REVERSE QUIZ =====
+let rquizStudents = [], rquizIndex = 0, rquizCorrect = 0, rquizWrong = 0;
+let currentRQuizClass;
+
+function startRQuiz(cls) {
+    currentRQuizClass = cls;
+    const isAll  = cls === undefined;
+    const isNone = cls === null;
+    let pool = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === cls);
+    if (pool.length < 2) { showToast('נדרשים לפחות 2 תלמידים'); return; }
+
+    rquizStudents = [...pool].sort(() => Math.random() - 0.5);
+    rquizIndex = rquizCorrect = rquizWrong = 0;
+
+    const badge = document.getElementById('rquiz-class-badge');
+    if (!isAll) {
+        badge.style.display = 'inline-block';
+        badge.style.background = isNone ? '#9ca3af' : classColor(cls);
+        badge.textContent = isNone ? 'ללא כיתה' : cls;
+    } else { badge.style.display = 'none'; }
+
+    showView('rquiz');
+    renderRQuestion();
+}
+
+function renderRQuestion() {
+    const total   = rquizStudents.length;
+    const student = rquizStudents[rquizIndex];
+
+    document.getElementById('rquiz-progress-bar').style.width = (rquizIndex / total * 100) + '%';
+    document.getElementById('rquiz-progress-text').textContent = `שאלה ${rquizIndex + 1} מתוך ${total}`;
+    document.getElementById('rquiz-name').textContent = student.name;
+    document.getElementById('rquiz-result-panel').style.display = 'none';
+    document.getElementById('rquiz-btn-next').style.display = 'none';
+
+    // Use the pool for this class/all
+    const isAll  = currentRQuizClass === undefined;
+    const isNone = currentRQuizClass === null;
+    let pool = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === currentRQuizClass);
+
+    const cols = pool.length <= 4 ? 2 : pool.length >= 10 ? 4 : 3;
+    const grid = document.getElementById('rquiz-grid');
+    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    grid.innerHTML = '';
+
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    shuffled.forEach(s => {
+        const card = document.createElement('div');
+        card.className = 'rquiz-photo-card';
+        card.dataset.id = s.id;
+        card.innerHTML = `<img src="${s.photo}" alt="">`;
+        card.onclick = () => selectRAnswer(card, s.id, student);
+        grid.appendChild(card);
+    });
+}
+
+function selectRAnswer(card, chosenId, student) {
+    document.querySelectorAll('.rquiz-photo-card').forEach(c => { c.classList.add('answered'); c.onclick = null; });
+
+    const isCorrect = chosenId === student.id;
+    const s = students.find(x => x.id === student.id);
+    if (isCorrect) { rquizCorrect++; s.correct++; } else { rquizWrong++; s.wrong++; }
+    saveData();
+
+    card.classList.add(isCorrect ? 'correct' : 'wrong');
+    const chosenOverlay = document.createElement('div');
+    chosenOverlay.className = 'rquiz-name-overlay';
+    chosenOverlay.textContent = isCorrect ? '✓ ' + student.name : '✗ ' + (students.find(x => x.id === chosenId)?.name || '');
+    card.appendChild(chosenOverlay);
+
+    if (!isCorrect) {
+        const correctCard = document.querySelector(`.rquiz-photo-card[data-id="${student.id}"]`);
+        if (correctCard) {
+            correctCard.classList.add('revealed');
+            const revOverlay = document.createElement('div');
+            revOverlay.className = 'rquiz-name-overlay';
+            revOverlay.textContent = '✓ ' + student.name;
+            correctCard.appendChild(revOverlay);
+        }
+    }
+
+    const panel = document.getElementById('rquiz-result-panel');
+    panel.style.display = 'block';
+    const assocHtml = student.association ? `<div class="result-association"><div class="assoc-label">💡 אסוציאציה:</div><div class="assoc-body">${student.association}</div></div>` : '';
+    panel.className = `result-panel ${isCorrect ? 'correct' : 'wrong'}-result`;
+    if (isCorrect) {
+        playCorrectSound();
+        const feedback = getRandomFeedback();
+        panel.innerHTML = `<div class="result-text" style="font-size:1rem;margin-bottom:8px">${feedback}</div><div style="font-size:0.9rem;color:#065f46;margin-bottom:10px">מצאת את <strong>${student.name}</strong>!</div>${assocHtml}`;
+    } else {
+        panel.innerHTML = `<div class="result-emoji">❌</div><div class="result-text">לא נכון — <strong>${student.name}</strong> מסומן/ת בירוק</div>${assocHtml}`;
+    }
+
+    const nextBtn = document.getElementById('rquiz-btn-next');
+    if (isCorrect) {
+        nextBtn.style.display = 'none';
+        setTimeout(rquizNext, 2000);
+    } else {
+        nextBtn.style.display = 'block';
+        nextBtn.textContent = rquizIndex === rquizStudents.length - 1 ? 'סיים מבחן ←' : 'השאלה הבאה ←';
+    }
+}
+
+function rquizNext() {
+    rquizIndex++;
+    if (rquizIndex >= rquizStudents.length) showSummary('rquiz');
+    else renderRQuestion();
+}
+
+// ===== CLEAR CLASS =====
+function clearClass(className) {
+    const count = students.filter(s => s.className === className).length;
+    if (!confirm(`למחוק את כל ${count} התלמידים בכיתה "${className}"?\nפעולה זו אינה ניתנת לביטול.`)) return;
+    students = students.filter(s => s.className !== className);
+    saveData();
+    showToast(`🗑️ כיתה "${className}" רוקנה`);
+    renderHome();
+}
+
+// ===== EXPORT LIST =====
+function exportList() {
+    if (students.length === 0) { showToast('אין תלמידים לייצוא'); return; }
+
+    const classes = getClasses();
+    const lines = [];
+    const date = new Date().toLocaleDateString('he-IL');
+    lines.push(`רשימת תלמידים — ${date}`);
+    lines.push('='.repeat(30));
+    lines.push('');
+
+    // By class
+    classes.forEach(cls => {
+        const group = students.filter(s => s.className === cls);
+        lines.push(`📚 ${cls} (${group.length} תלמידים):`);
+        group.forEach((s, i) => {
+            lines.push(`  ${i + 1}. ${s.name}`);
+        });
+        lines.push('');
+    });
+
+    // Uncategorized
+    const none = students.filter(s => !s.className);
+    if (none.length > 0) {
+        lines.push(`ללא כיתה (${none.length} תלמידים):`);
+        none.forEach((s, i) => lines.push(`  ${i + 1}. ${s.name}`));
+        lines.push('');
+    }
+
+    lines.push(`סה"כ: ${students.length} תלמידים`);
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `תלמידים_${date.replace(/\//g, '-')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('📤 הקובץ הורד בהצלחה!');
+}
+
+// ===== TOAST =====
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+// ===== INIT =====
+renderHome();
+</script>
+</body>
+</html>
