@@ -630,8 +630,13 @@
     <div class="settings-overlay" id="settings-overlay" onclick="closeSettings(event)">
         <div class="settings-box">
             <h3>⚙️ הגדרות</h3>
-            <p class="settings-desc">מפתח Anthropic API מאפשר יצירת אמוג'י אוטומטית לתלמידים.<br>ניתן לקבל מפתח בחינם בכתובת console.anthropic.com</p>
-            <input type="password" id="settings-api-key" placeholder="sk-ant-api03-..." autocomplete="off">
+            <p class="settings-desc">בחר ספק AI והכנס מפתח API כדי לאפשר יצירת אמוג'י אוטומטית לתלמידים.</p>
+            <select id="settings-provider" onchange="loadKeyForProvider()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;margin-bottom:10px;font-size:0.9rem;font-family:inherit;direction:rtl;box-sizing:border-box;">
+                <option value="anthropic">Anthropic Claude — console.anthropic.com</option>
+                <option value="openai">OpenAI GPT — platform.openai.com</option>
+                <option value="gemini">Google Gemini — aistudio.google.com</option>
+            </select>
+            <input type="password" id="settings-api-key" placeholder="הכנס מפתח API..." autocomplete="off">
             <div class="settings-row">
                 <button class="btn-settings-save" onclick="saveSettings()">שמור</button>
                 <button class="btn-settings-cancel" onclick="closeSettings()">ביטול</button>
@@ -1530,18 +1535,25 @@ function saveEditEmoji() {
 
 // Settings
 function openSettings() {
-    const key = localStorage.getItem('anthropicKey') || '';
-    document.getElementById('settings-api-key').value = key;
+    const provider = localStorage.getItem('aiProvider') || 'anthropic';
+    document.getElementById('settings-provider').value = provider;
+    document.getElementById('settings-api-key').value = localStorage.getItem('aiKey_' + provider) || '';
     document.getElementById('settings-overlay').classList.add('open');
+}
+function loadKeyForProvider() {
+    const provider = document.getElementById('settings-provider').value;
+    document.getElementById('settings-api-key').value = localStorage.getItem('aiKey_' + provider) || '';
 }
 function closeSettings(e) {
     if (e && e.target !== document.getElementById('settings-overlay')) return;
     document.getElementById('settings-overlay').classList.remove('open');
 }
 function saveSettings() {
+    const provider = document.getElementById('settings-provider').value;
     const key = document.getElementById('settings-api-key').value.trim();
-    if (key) localStorage.setItem('anthropicKey', key);
-    else localStorage.removeItem('anthropicKey');
+    localStorage.setItem('aiProvider', provider);
+    if (key) localStorage.setItem('aiKey_' + provider, key);
+    else localStorage.removeItem('aiKey_' + provider);
     document.getElementById('settings-overlay').classList.remove('open');
     showToast('✅ הגדרות נשמרו');
 }
@@ -1557,26 +1569,13 @@ async function generateEmojiDetail() {
     await _doGenerateEmoji(name, 'edit-emoji-input', 'edit-emoji-explain-input', 'btn-gen-emoji-detail');
 }
 async function _doGenerateEmoji(name, emojiFieldId, explainFieldId, btnId) {
-    const key = localStorage.getItem('anthropicKey');
+    const provider = localStorage.getItem('aiProvider') || 'anthropic';
+    const key = localStorage.getItem('aiKey_' + provider);
     if (!key) { openSettings(); showToast('⚠️ הכנס מפתח API תחילה'); return; }
     if (!name) { showToast('⚠️ הכנס שם תחילה'); return; }
     const btn = document.getElementById(btnId);
     btn.disabled = true; btn.textContent = '⏳';
-    try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': key,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerous-direct-browser-access': 'true'
-            },
-            body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 150,
-                messages: [{
-                    role: 'user',
-                    content: `לתלמיד בשם "${name}" - תן אמוג'י אחד שיעזור לזכור את השם, ובשורה שנייה הסבר קצר (עד 10 מילים) כיצד הוא קשור לשם.
+    const prompt = `לתלמיד בשם "${name}" - תן אמוג'י אחד שיעזור לזכור את השם, ובשורה שנייה הסבר קצר (עד 10 מילים) כיצד הוא קשור לשם.
 דוגמאות:
 רוז → 🌹 / רוז = ורד באנגלית
 ביטון → 🪨 / ביטון נשמע כמו בטון = קשה
@@ -1584,13 +1583,35 @@ async function _doGenerateEmoji(name, emojiFieldId, explainFieldId, btnId) {
 כהן → 👑 / כהן גדול עם כתר
 ענת → 🦋 / ענת = חן ורוך
 
-פלט: שורה 1 = האמוג'י בלבד. שורה 2 = ההסבר בלבד. ללא טקסט נוסף.`
-                }]
-            })
-        });
-        if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || res.status); }
-        const data = await res.json();
-        const lines = data.content[0].text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+פלט: שורה 1 = האמוג'י בלבד. שורה 2 = ההסבר בלבד. ללא טקסט נוסף.`;
+    try {
+        let text;
+        if (provider === 'anthropic') {
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+                body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 150, messages: [{ role: 'user', content: prompt }] })
+            });
+            if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || res.status); }
+            text = (await res.json()).content[0].text;
+        } else if (provider === 'openai') {
+            const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+                body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 100, messages: [{ role: 'user', content: prompt }] })
+            });
+            if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || res.status); }
+            text = (await res.json()).choices[0].message.content;
+        } else if (provider === 'gemini') {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 100 } })
+            });
+            if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || res.status); }
+            text = (await res.json()).candidates[0].content.parts[0].text;
+        }
+        const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
         if (lines.length >= 1) document.getElementById(emojiFieldId).value = lines[0];
         if (lines.length >= 2) document.getElementById(explainFieldId).value = lines[1];
     } catch(err) {
