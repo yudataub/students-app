@@ -339,6 +339,72 @@
             pointer-events: none; white-space: nowrap;
         }
         #toast.show { opacity: 1; }
+
+        /* Emoji memory feature */
+        .student-card { position: relative; }
+        .card-emoji-badge {
+            position: absolute; top: 6px; left: 6px;
+            font-size: 1.4rem;
+            background: rgba(255,255,255,0.95);
+            border-radius: 50%; width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 2; transition: transform 0.2s;
+        }
+        .card-emoji-badge:hover { transform: scale(1.2); }
+        .emoji-popup-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 3000; display: none;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .emoji-popup-overlay.open { display: flex; }
+        .emoji-popup {
+            background: white; border-radius: 24px;
+            padding: 32px 24px; max-width: 320px; width: 100%;
+            text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: popupIn 0.25s ease;
+        }
+        @keyframes popupIn {
+            from { transform: scale(0.7); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .ep-emoji { font-size: 5rem; margin-bottom: 8px; }
+        .ep-name { font-weight: 800; font-size: 1.2rem; color: #1d4ed8; margin-bottom: 12px; }
+        .ep-explain { color: #374151; line-height: 1.7; font-size: 0.97rem; margin-bottom: 20px; }
+        .ep-close { background: #3b82f6; color: white; border: none; border-radius: 12px; padding: 11px 32px; font-size: 1rem; font-family: inherit; cursor: pointer; font-weight: 700; }
+        .detail-emoji-section {
+            background: linear-gradient(135deg, #fef9c3, #fef3c7);
+            border: 1.5px solid #f59e0b; border-radius: 14px;
+            padding: 12px 16px; margin: 10px 0;
+        }
+        .detail-emoji-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .emoji-section-label { font-size: 0.78rem; font-weight: 700; color: #b45309; }
+        .detail-emoji-big { font-size: 3rem; cursor: pointer; transition: transform 0.2s; display: inline-block; }
+        .detail-emoji-big:hover { transform: scale(1.15); }
+        .detail-emoji-explain { color: #92400e; font-size: 0.85rem; margin-top: 4px; line-height: 1.5; }
+        .settings-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 3000; display: none; align-items: center; justify-content: center; padding: 20px;
+        }
+        .settings-overlay.open { display: flex; }
+        .settings-box {
+            background: white; border-radius: 20px; padding: 24px;
+            max-width: 360px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .settings-box h3 { margin-bottom: 6px; font-size: 1.05rem; }
+        .settings-desc { color: #6b7280; font-size: 0.82rem; margin-bottom: 14px; line-height: 1.5; }
+        .settings-box input { width: 100%; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 10px; margin-bottom: 12px; font-size: 0.82rem; direction: ltr; box-sizing: border-box; }
+        .settings-row { display: flex; gap: 8px; }
+        .settings-row button { flex: 1; padding: 10px; border: none; border-radius: 10px; cursor: pointer; font-family: inherit; font-size: 0.9rem; font-weight: 700; }
+        .btn-settings-save { background: #3b82f6; color: white; }
+        .btn-settings-cancel { background: #f3f4f6; color: #374151; }
+        .emoji-gen-row { display: flex; gap: 6px; margin-bottom: 0; }
+        .emoji-gen-row input { flex: 1; margin-bottom: 0; }
+        .btn-gen { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: white; border: none; border-radius: 10px; padding: 10px 12px; cursor: pointer; font-size: 0.9rem; white-space: nowrap; flex-shrink: 0; font-family: inherit; }
+        .btn-gen:disabled { opacity: 0.6; cursor: not-allowed; }
+        #settings-btn { background: rgba(255,255,255,0.15); border: none; color: white; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 1.1rem; }
+        #settings-btn:hover { background: rgba(255,255,255,0.3); }
     </style>
 </head>
 <body>
@@ -346,7 +412,7 @@
 <header>
     <button id="back-btn" onclick="goBack()">→ חזור</button>
     <h1 id="header-title">🎓 זוכר שמות</h1>
-    <div style="width:70px"></div>
+    <button id="settings-btn" onclick="openSettings()" title="הגדרות">⚙️</button>
 </header>
 
 <main>
@@ -407,6 +473,14 @@
             <label>רעיון אסוציאטיבי <span class="optional">(אופציונלי)</span></label>
             <textarea id="input-assoc" placeholder="אסוציאציה שתעזור לזכור את השם..."></textarea>
         </div>
+        <div class="form-group">
+            <label>אמוג'י זיכרון <span class="optional">(אופציונלי)</span></label>
+            <div class="emoji-gen-row">
+                <input type="text" id="input-emoji" placeholder="🌹" style="max-width:80px;text-align:center;font-size:1.4rem;">
+                <input type="text" id="input-emoji-explain" placeholder="הסבר הקשר לשם (לדוג׳: רוז = ורד באנגלית)">
+                <button class="btn-gen" id="btn-gen-emoji" onclick="generateEmoji()" title="הצע אמוג'י באמצעות AI">✨ הצע</button>
+            </div>
+        </div>
         <button class="btn-primary" onclick="saveStudent()">💾 שמור תלמיד</button>
     </div>
 
@@ -456,6 +530,26 @@
             </div>
         </div>
         <button id="assoc-add-btn" class="assoc-add-btn" style="display:none" onclick="startEditAssoc()">➕ הוסף רעיון לזכירת השם</button>
+        <!-- EMOJI SECTION IN DETAIL -->
+        <div id="detail-emoji-section" class="detail-emoji-section" style="display:none">
+            <div class="detail-emoji-header">
+                <span class="emoji-section-label">🎯 אמוג'י זיכרון</span>
+                <button class="edit-name-btn" onclick="startEditEmoji()" title="ערוך">✏️</button>
+            </div>
+            <div id="detail-emoji-display">
+                <span id="detail-emoji-big" class="detail-emoji-big" onclick="showEmojiPopup()"></span>
+                <div id="detail-emoji-explain-text" class="detail-emoji-explain"></div>
+            </div>
+            <div id="edit-emoji-area" style="display:none;margin-top:8px;">
+                <div class="emoji-gen-row" style="margin-bottom:8px;">
+                    <input type="text" id="edit-emoji-input" placeholder="🌹" style="max-width:70px;text-align:center;font-size:1.3rem;padding:8px;border:1.5px solid #f59e0b;border-radius:8px;box-sizing:border-box;">
+                    <input type="text" id="edit-emoji-explain-input" placeholder="הסבר הקשר לשם..." style="flex:1;padding:8px 10px;border:1.5px solid #f59e0b;border-radius:8px;font-family:inherit;font-size:0.9rem;direction:rtl;box-sizing:border-box;">
+                    <button class="btn-gen" id="btn-gen-emoji-detail" onclick="generateEmojiDetail()" title="הצע אמוג'י">✨</button>
+                </div>
+                <button onclick="saveEditEmoji()" style="width:100%;padding:9px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;">שמור</button>
+            </div>
+        </div>
+        <button id="emoji-add-btn" class="assoc-add-btn" style="display:none" onclick="startEditEmoji()">✨ הוסף אמוג'י זיכרון</button>
         <div class="stats-row">
             <div class="stat-box correct">
                 <div class="stat-num" id="detail-correct">0</div>
@@ -519,6 +613,29 @@
             <button class="menu-btn btn-quiz" onclick="quizAgain()"><span class="icon">🔄</span> מבחן נוסף</button>
             <button class="menu-btn btn-gallery" onclick="galleryAgain()"><span class="icon">📋</span> רשימת תלמידים</button>
             <button class="menu-btn btn-back-home" onclick="showView('home')"><span class="icon">🏠</span> תפריט ראשי</button>
+        </div>
+    </div>
+
+    <!-- EMOJI POPUP -->
+    <div class="emoji-popup-overlay" id="emoji-popup-overlay" onclick="closeEmojiPopup(event)">
+        <div class="emoji-popup">
+            <div class="ep-emoji" id="ep-emoji"></div>
+            <div class="ep-name" id="ep-name"></div>
+            <div class="ep-explain" id="ep-explain"></div>
+            <button class="ep-close" onclick="closeEmojiPopup()">סגור</button>
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div class="settings-overlay" id="settings-overlay" onclick="closeSettings(event)">
+        <div class="settings-box">
+            <h3>⚙️ הגדרות</h3>
+            <p class="settings-desc">מפתח Anthropic API מאפשר יצירת אמוג'י אוטומטית לתלמידים.<br>ניתן לקבל מפתח בחינם בכתובת console.anthropic.com</p>
+            <input type="password" id="settings-api-key" placeholder="sk-ant-api03-..." autocomplete="off">
+            <div class="settings-row">
+                <button class="btn-settings-save" onclick="saveSettings()">שמור</button>
+                <button class="btn-settings-cancel" onclick="closeSettings()">ביטול</button>
+            </div>
         </div>
     </div>
 
@@ -793,7 +910,9 @@ function saveStudent() {
     if (!name)      { showToast('⚠️ אנא הכנס שם תלמיד'); return; }
     if (!photoData) { showToast('⚠️ אנא העלה תמונה'); return; }
 
-    students.push({ id: generateId(), name, photo: photoData, association: assoc, className, correct: 0, wrong: 0 });
+    const emoji = document.getElementById('input-emoji').value.trim();
+    const emojiExplanation = document.getElementById('input-emoji-explain').value.trim();
+    students.push({ id: generateId(), name, photo: photoData, association: assoc, className, emoji, emojiExplanation, correct: 0, wrong: 0 });
     saveData();
 
     photoData = null;
@@ -801,6 +920,8 @@ function saveStudent() {
     document.getElementById('photo-placeholder').style.display = 'block';
     document.getElementById('input-name').value = '';
     document.getElementById('input-assoc').value = '';
+    document.getElementById('input-emoji').value = '';
+    document.getElementById('input-emoji-explain').value = '';
     document.getElementById('photo-input').value = '';
     document.getElementById('new-class-wrap').style.display = 'none';
     showToast('✅ תלמיד נשמר!');
@@ -899,7 +1020,8 @@ function makeStudentCard(s) {
     const pct   = total > 0 ? Math.round(s.correct / total * 100) + '%' : 'טרם נבחן';
     const card  = document.createElement('div');
     card.className = 'student-card';
-    card.innerHTML = `<img src="${s.photo}" alt="${s.name}"><div class="card-name">${s.name}</div><div class="card-stats">${pct}</div>`;
+    const emojiBadge = s.emoji ? `<div class="card-emoji-badge" onclick="event.stopPropagation();showEmojiPopupFor('${s.id}')">${s.emoji}</div>` : '';
+    card.innerHTML = `${emojiBadge}<img src="${s.photo}" alt="${s.name}"><div class="card-name">${s.name}</div><div class="card-stats">${pct}</div>`;
     card.onclick = () => showDetail(s.id);
     return card;
 }
@@ -933,6 +1055,21 @@ function showDetail(id) {
     } else {
         box.style.display = 'none';
         addBtn.style.display = 'block';
+    }
+
+    // Emoji section
+    const emojiSection = document.getElementById('detail-emoji-section');
+    const emojiAddBtn = document.getElementById('emoji-add-btn');
+    document.getElementById('edit-emoji-area').style.display = 'none';
+    document.getElementById('detail-emoji-display').style.display = '';
+    if (s.emoji) {
+        emojiSection.style.display = 'block';
+        emojiAddBtn.style.display = 'none';
+        document.getElementById('detail-emoji-big').textContent = s.emoji;
+        document.getElementById('detail-emoji-explain-text').textContent = s.emojiExplanation || '';
+    } else {
+        emojiSection.style.display = 'none';
+        emojiAddBtn.style.display = 'block';
     }
 
     showView('detail');
@@ -1350,6 +1487,118 @@ function showToast(msg) {
 
 // ===== INIT =====
 renderHome();
+
+// ===== EMOJI MEMORY FEATURE =====
+function showEmojiPopupFor(studentId) {
+    const s = students.find(x => x.id === studentId);
+    if (!s || !s.emoji) return;
+    document.getElementById('ep-emoji').textContent = s.emoji;
+    document.getElementById('ep-name').textContent = s.name;
+    document.getElementById('ep-explain').textContent = s.emojiExplanation || '';
+    document.getElementById('emoji-popup-overlay').classList.add('open');
+}
+function showEmojiPopup() {
+    const s = students.find(x => x.id === currentStudentId);
+    if (!s || !s.emoji) return;
+    showEmojiPopupFor(currentStudentId);
+}
+function closeEmojiPopup(e) {
+    if (e && e.target !== document.getElementById('emoji-popup-overlay')) return;
+    document.getElementById('emoji-popup-overlay').classList.remove('open');
+}
+
+// Emoji edit in detail view
+function startEditEmoji() {
+    const s = students.find(x => x.id === currentStudentId);
+    if (!s) return;
+    document.getElementById('detail-emoji-section').style.display = 'block';
+    document.getElementById('emoji-add-btn').style.display = 'none';
+    document.getElementById('detail-emoji-display').style.display = 'none';
+    document.getElementById('edit-emoji-area').style.display = 'block';
+    document.getElementById('edit-emoji-input').value = s.emoji || '';
+    document.getElementById('edit-emoji-explain-input').value = s.emojiExplanation || '';
+}
+function saveEditEmoji() {
+    const s = students.find(x => x.id === currentStudentId);
+    if (!s) return;
+    s.emoji = document.getElementById('edit-emoji-input').value.trim();
+    s.emojiExplanation = document.getElementById('edit-emoji-explain-input').value.trim();
+    saveData();
+    showDetail(currentStudentId);
+    showToast('✅ אמוג\'י נשמר!');
+}
+
+// Settings
+function openSettings() {
+    const key = localStorage.getItem('anthropicKey') || '';
+    document.getElementById('settings-api-key').value = key;
+    document.getElementById('settings-overlay').classList.add('open');
+}
+function closeSettings(e) {
+    if (e && e.target !== document.getElementById('settings-overlay')) return;
+    document.getElementById('settings-overlay').classList.remove('open');
+}
+function saveSettings() {
+    const key = document.getElementById('settings-api-key').value.trim();
+    if (key) localStorage.setItem('anthropicKey', key);
+    else localStorage.removeItem('anthropicKey');
+    document.getElementById('settings-overlay').classList.remove('open');
+    showToast('✅ הגדרות נשמרו');
+}
+
+// AI emoji generation
+async function generateEmoji() {
+    const name = document.getElementById('input-name').value.trim();
+    await _doGenerateEmoji(name, 'input-emoji', 'input-emoji-explain', 'btn-gen-emoji');
+}
+async function generateEmojiDetail() {
+    const s = students.find(x => x.id === currentStudentId);
+    const name = s ? s.name : '';
+    await _doGenerateEmoji(name, 'edit-emoji-input', 'edit-emoji-explain-input', 'btn-gen-emoji-detail');
+}
+async function _doGenerateEmoji(name, emojiFieldId, explainFieldId, btnId) {
+    const key = localStorage.getItem('anthropicKey');
+    if (!key) { openSettings(); showToast('⚠️ הכנס מפתח API תחילה'); return; }
+    if (!name) { showToast('⚠️ הכנס שם תחילה'); return; }
+    const btn = document.getElementById(btnId);
+    btn.disabled = true; btn.textContent = '⏳';
+    try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': key,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 150,
+                messages: [{
+                    role: 'user',
+                    content: `לתלמיד בשם "${name}" - תן אמוג'י אחד שיעזור לזכור את השם, ובשורה שנייה הסבר קצר (עד 10 מילים) כיצד הוא קשור לשם.
+דוגמאות:
+רוז → 🌹 / רוז = ורד באנגלית
+ביטון → 🪨 / ביטון נשמע כמו בטון = קשה
+למפ → 💡 / lamp = מנורה באנגלית
+כהן → 👑 / כהן גדול עם כתר
+ענת → 🦋 / ענת = חן ורוך
+
+פלט: שורה 1 = האמוג'י בלבד. שורה 2 = ההסבר בלבד. ללא טקסט נוסף.`
+                }]
+            })
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || res.status); }
+        const data = await res.json();
+        const lines = data.content[0].text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length >= 1) document.getElementById(emojiFieldId).value = lines[0];
+        if (lines.length >= 2) document.getElementById(explainFieldId).value = lines[1];
+    } catch(err) {
+        showToast('⚠️ שגיאה: ' + err.message);
+    } finally {
+        btn.disabled = false; btn.textContent = btnId.includes('detail') ? '✨' : '✨ הצע';
+    }
+}
 </script>
 </body>
 </html>
