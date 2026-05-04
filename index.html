@@ -1256,7 +1256,8 @@ function renderQuestion() {
     opts.forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'quiz-option';
-        btn.textContent = opt.name;
+        const s = students.find(x => x.id === opt.id);
+        btn.textContent = (s && s.emoji ? s.emoji + ' ' : '') + opt.name;
         btn.dataset.id  = opt.id || '';
         btn.onclick = () => selectAnswer(btn, student);
         cont.appendChild(btn);
@@ -1353,7 +1354,7 @@ function renderRQuestion() {
 
     document.getElementById('rquiz-progress-bar').style.width = (rquizIndex / total * 100) + '%';
     document.getElementById('rquiz-progress-text').textContent = `שאלה ${rquizIndex + 1} מתוך ${total}`;
-    document.getElementById('rquiz-name').textContent = student.name;
+    document.getElementById('rquiz-name').textContent = (student.emoji ? student.emoji + ' ' : '') + student.name;
     document.getElementById('rquiz-result-panel').style.display = 'none';
     document.getElementById('rquiz-btn-next').style.display = 'none';
 
