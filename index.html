@@ -405,6 +405,67 @@
         .btn-gen:disabled { opacity: 0.6; cursor: not-allowed; }
         #settings-btn { background: rgba(255,255,255,0.15); border: none; color: white; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 1.1rem; }
         #settings-btn:hover { background: rgba(255,255,255,0.3); }
+
+        /* MEMORY QUIZ */
+        .mquiz-btn-sm:hover { color: #06b6d4; }
+        .mquiz-setup-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px;
+        }
+        .mquiz-setup-overlay.open { display: flex; }
+        .mquiz-setup-box {
+            background: white; border-radius: 20px; padding: 24px;
+            max-width: 360px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .mquiz-setup-box h3 { margin-bottom: 14px; font-size: 1.1rem; text-align: center; }
+        .mquiz-mode-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+        .mquiz-mode-btn {
+            padding: 11px 16px; border: 2px solid #e5e7eb; border-radius: 12px;
+            background: white; cursor: pointer; font-family: inherit; font-size: 0.92rem;
+            font-weight: 600; color: #374151; text-align: right; direction: rtl;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .mquiz-mode-btn.selected { border-color: #06b6d4; background: #ecfeff; color: #0e7490; }
+        .mquiz-hints-row {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+            padding: 10px 14px; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer;
+            font-size: 0.9rem; font-weight: 600; color: #374151;
+        }
+        .mquiz-hints-row.selected { border-color: #06b6d4; background: #ecfeff; color: #0e7490; }
+        .mquiz-hints-toggle {
+            width: 20px; height: 20px; border: 2px solid #9ca3af; border-radius: 5px;
+            display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0;
+        }
+        .mquiz-hints-row.selected .mquiz-hints-toggle { background: #06b6d4; border-color: #06b6d4; color: white; }
+        .btn-start-mquiz {
+            width: 100%; padding: 13px; background: #06b6d4; color: white;
+            border: none; border-radius: 12px; font-family: inherit; font-size: 1rem; font-weight: 700; cursor: pointer;
+        }
+        .mquiz-emoji-hint { text-align: center; font-size: 3.5rem; margin: 8px 0 4px; }
+        .mquiz-letter-hint {
+            text-align: center; font-size: 1.8rem; font-weight: 800; letter-spacing: 0.1em;
+            color: #0e7490; margin-bottom: 14px;
+        }
+        .mquiz-input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .mquiz-input {
+            flex: 1; padding: 13px 16px; border: 2.5px solid #e5e7eb; border-radius: 12px;
+            font-size: 1.1rem; font-family: inherit; direction: rtl; text-align: right;
+            transition: border-color 0.2s; box-sizing: border-box;
+        }
+        .mquiz-input:focus { outline: none; border-color: #06b6d4; }
+        .mquiz-input.correct { border-color: #10b981; background: #f0fdf4; }
+        .mquiz-input.wrong { border-color: #ef4444; background: #fef2f2; }
+        .btn-mquiz-submit {
+            padding: 13px 18px; background: #06b6d4; color: white; border: none;
+            border-radius: 12px; font-family: inherit; font-size: 1rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
+        }
+        .btn-mquiz-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+        .mquiz-result {
+            text-align: center; padding: 12px; border-radius: 12px; margin-bottom: 10px;
+            font-weight: 700; font-size: 1rem;
+        }
+        .mquiz-result.correct { background: #f0fdf4; color: #15803d; }
+        .mquiz-result.wrong { background: #fef2f2; color: #b91c1c; }
     </style>
 </head>
 <body>
@@ -616,6 +677,45 @@
         </div>
     </div>
 
+    <!-- MEMORY QUIZ SETUP MODAL -->
+    <div class="mquiz-setup-overlay" id="mquiz-setup-overlay" onclick="closeMQuizSetup(event)">
+        <div class="mquiz-setup-box">
+            <h3>✍️ מבחן זיכרון</h3>
+            <div class="section-title" style="margin-top:0;margin-bottom:8px;">מה לכתוב?</div>
+            <div class="mquiz-mode-group">
+                <button class="mquiz-mode-btn selected" data-mode="first" onclick="selectMQuizMode(this)">✏️ שם פרטי בלבד (ברירת מחדל)</button>
+                <button class="mquiz-mode-btn" data-mode="last" onclick="selectMQuizMode(this)">✏️ שם משפחה בלבד</button>
+                <button class="mquiz-mode-btn" data-mode="full" onclick="selectMQuizMode(this)">✏️ שם מלא (פרטי + משפחה)</button>
+            </div>
+            <div class="section-title" style="margin-bottom:8px;">רמזים</div>
+            <div class="mquiz-hints-row selected" id="mquiz-hints-row" onclick="toggleMQuizHints()">
+                <div class="mquiz-hints-toggle" id="mquiz-hints-toggle">✓</div>
+                <div>הצג 2 אותיות ראשונות כרמז</div>
+            </div>
+            <button class="btn-start-mquiz" onclick="confirmMQuizSetup()">התחל מבחן ←</button>
+        </div>
+    </div>
+
+    <!-- MEMORY QUIZ VIEW -->
+    <div id="view-mquiz" class="view">
+        <div class="quiz-class-wrap">
+            <span id="mquiz-class-badge" class="quiz-class-badge"></span>
+        </div>
+        <div class="quiz-progress-bar-wrap">
+            <div class="quiz-progress-bar" id="mquiz-progress-bar" style="width:0%"></div>
+        </div>
+        <div class="quiz-progress-text" id="mquiz-progress-text">שאלה 1</div>
+        <img id="mquiz-photo" class="quiz-photo" alt="">
+        <div id="mquiz-emoji-hint" class="mquiz-emoji-hint" style="display:none"></div>
+        <div id="mquiz-letter-hint" class="mquiz-letter-hint" style="display:none"></div>
+        <div class="mquiz-input-row">
+            <input type="text" id="mquiz-input" class="mquiz-input" placeholder="כתוב את השם..." autocomplete="off" onkeydown="if(event.key==='Enter' && !this.disabled) submitMAnswer()">
+            <button class="btn-mquiz-submit" id="btn-mquiz-submit" onclick="submitMAnswer()">בדוק ✓</button>
+        </div>
+        <div id="mquiz-result-panel" class="mquiz-result" style="display:none"></div>
+        <button id="mquiz-btn-next" class="btn-next" style="display:none" onclick="mquizNext()">השאלה הבאה ←</button>
+    </div>
+
     <!-- EMOJI POPUP -->
     <div class="emoji-popup-overlay" id="emoji-popup-overlay" onclick="closeEmojiPopup(event)">
         <div class="emoji-popup">
@@ -679,7 +779,7 @@ let navStack = ['home'];
 function showView(name, title) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('view-' + name).classList.add('active');
-    const titles = { home:'🎓 זוכר שמות', add:'➕ הוסף תלמיד', bulk:'📁 העלאת קבוצה', gallery:'📋 תלמידים', detail:'👤 פרופיל', quiz:'📝 מבחן', rquiz:'🔍 מצא בתמונה', summary:'📊 תוצאות' };
+    const titles = { home:'🎓 זוכר שמות', add:'➕ הוסף תלמיד', bulk:'📁 העלאת קבוצה', gallery:'📋 תלמידים', detail:'👤 פרופיל', quiz:'📝 מבחן', rquiz:'🔍 מצא בתמונה', mquiz:'✍️ מבחן זיכרון', summary:'📊 תוצאות' };
     document.getElementById('header-title').textContent = title || titles[name] || '';
     document.getElementById('back-btn').style.display = name === 'home' ? 'none' : 'block';
     if (name === 'home') { navStack = ['home']; renderHome(); }
@@ -786,11 +886,19 @@ function renderHome() {
         rquizBtn.innerHTML = '🔍 הפוך';
         if (canQuiz) rquizBtn.onclick = () => startRQuiz(isNone ? null : key);
 
+        const sep3 = document.createElement('div');
+        sep3.className = 'class-sep';
+        const mquizBtn = document.createElement('button');
+        mquizBtn.className = `class-action-btn mquiz-btn-sm${canQuiz ? '' : ' disabled'}`;
+        mquizBtn.innerHTML = '✍️ זיכרון';
+        if (canQuiz) mquizBtn.onclick = () => showMQuizSetup(isNone ? null : key);
         actions.appendChild(galleryBtn);
         actions.appendChild(sep);
         actions.appendChild(quizBtn);
         actions.appendChild(sep2);
         actions.appendChild(rquizBtn);
+        actions.appendChild(sep3);
+        actions.appendChild(mquizBtn);
         card.appendChild(actions);
         list.appendChild(card);
     });
@@ -821,11 +929,19 @@ function renderHome() {
     allRquiz.innerHTML = '🔍 הפוך';
     if (canAll) allRquiz.onclick = () => startRQuiz(undefined);
 
+    const allSep3 = document.createElement('div');
+    allSep3.className = 'class-sep';
+    const allMquiz = document.createElement('button');
+    allMquiz.className = `class-action-btn mquiz-btn-sm${canAll ? '' : ' disabled'}`;
+    allMquiz.innerHTML = '✍️ זיכרון';
+    if (canAll) allMquiz.onclick = () => showMQuizSetup(undefined);
     allRow.appendChild(allGallery);
     allRow.appendChild(allSep);
     allRow.appendChild(allQuiz);
     allRow.appendChild(allSep2);
     allRow.appendChild(allRquiz);
+    allRow.appendChild(allSep3);
+    allRow.appendChild(allMquiz);
     list.appendChild(allRow);
 
     populateClassSelect('input-class');
@@ -1303,15 +1419,15 @@ function selectAnswer(btn, student) {
 }
 
 function nextQuestion() { quizIndex++; if (quizIndex >= quizStudents.length) showSummary('quiz'); else renderQuestion(); }
-function quizAgain()    { if (lastQuizMode === 'rquiz') startRQuiz(currentRQuizClass); else startQuiz(currentQuizClass); }
-function galleryAgain() { showGallery(lastQuizMode === 'rquiz' ? currentRQuizClass : currentQuizClass); }
+function quizAgain()    { if (lastQuizMode === 'rquiz') startRQuiz(currentRQuizClass); else if (lastQuizMode === 'mquiz') showMQuizSetup(currentMQuizClass); else startQuiz(currentQuizClass); }
+function galleryAgain() { showGallery(lastQuizMode === 'rquiz' ? currentRQuizClass : lastQuizMode === 'mquiz' ? currentMQuizClass : currentQuizClass); }
 
 let lastQuizMode = 'quiz';
 function showSummary(mode) {
     lastQuizMode = mode || 'quiz';
-    const correct = lastQuizMode === 'rquiz' ? rquizCorrect : quizCorrect;
-    const wrong   = lastQuizMode === 'rquiz' ? rquizWrong   : quizWrong;
-    const total   = lastQuizMode === 'rquiz' ? rquizStudents.length : quizStudents.length;
+    const correct = lastQuizMode === 'rquiz' ? rquizCorrect : lastQuizMode === 'mquiz' ? mquizCorrect : quizCorrect;
+    const wrong   = lastQuizMode === 'rquiz' ? rquizWrong   : lastQuizMode === 'mquiz' ? mquizWrong   : quizWrong;
+    const total   = lastQuizMode === 'rquiz' ? rquizStudents.length : lastQuizMode === 'mquiz' ? mquizStudents.length : quizStudents.length;
     const pct     = Math.round(correct / total * 100);
     const emojis  = [[100,'🏆'],[80,'🎉'],[60,'👍'],[40,'💪'],[0,'📚']];
     const emoji   = emojis.find(([t]) => pct >= t)[1];
@@ -1631,6 +1747,130 @@ async function _doGenerateEmoji(name, emojiFieldId, explainFieldId, btnId) {
     } finally {
         btn.disabled = false; btn.textContent = btnId.includes('detail') ? '✨' : '✨ הצע';
     }
+}
+
+// ===== MEMORY QUIZ =====
+let mquizStudents = [], mquizIndex = 0, mquizCorrect = 0, mquizWrong = 0;
+let currentMQuizClass;
+let mquizMode = 'first';
+let mquizHints = true;
+let mquizPendingClass;
+
+function showMQuizSetup(cls) {
+    mquizPendingClass = cls;
+    document.querySelectorAll('.mquiz-mode-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelector('.mquiz-mode-btn[data-mode="first"]').classList.add('selected');
+    mquizMode = 'first';
+    mquizHints = true;
+    document.getElementById('mquiz-hints-row').classList.add('selected');
+    document.getElementById('mquiz-hints-toggle').textContent = '✓';
+    document.getElementById('mquiz-setup-overlay').classList.add('open');
+}
+function closeMQuizSetup(e) {
+    if (e && e.target !== document.getElementById('mquiz-setup-overlay')) return;
+    document.getElementById('mquiz-setup-overlay').classList.remove('open');
+}
+function selectMQuizMode(btn) {
+    document.querySelectorAll('.mquiz-mode-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    mquizMode = btn.dataset.mode;
+}
+function toggleMQuizHints() {
+    mquizHints = !mquizHints;
+    document.getElementById('mquiz-hints-row').classList.toggle('selected', mquizHints);
+    document.getElementById('mquiz-hints-toggle').textContent = mquizHints ? '✓' : '';
+}
+function confirmMQuizSetup() {
+    document.getElementById('mquiz-setup-overlay').classList.remove('open');
+    startMQuiz(mquizPendingClass, mquizMode, mquizHints);
+}
+function startMQuiz(cls, mode, hints) {
+    currentMQuizClass = cls;
+    mquizMode = mode;
+    mquizHints = hints;
+    const isAll = cls === undefined;
+    const isNone = cls === null;
+    let pool = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === cls);
+    if (pool.length < 1) { showToast('נדרש לפחות תלמיד אחד'); return; }
+    mquizStudents = [...pool].sort(() => Math.random() - 0.5);
+    mquizIndex = mquizCorrect = mquizWrong = 0;
+    const badge = document.getElementById('mquiz-class-badge');
+    if (!isAll) {
+        badge.style.display = 'inline-block';
+        badge.style.background = isNone ? '#9ca3af' : classColor(cls);
+        badge.textContent = isNone ? 'ללא כיתה' : cls;
+    } else { badge.style.display = 'none'; }
+    showView('mquiz');
+    renderMQuestion();
+}
+function getMQuizExpected(student) {
+    const parts = student.name.trim().split(/\s+/);
+    if (mquizMode === 'first') return parts[0] || student.name;
+    if (mquizMode === 'last') return parts.length > 1 ? parts[parts.length - 1] : student.name;
+    return student.name;
+}
+function renderMQuestion() {
+    const total = mquizStudents.length;
+    const student = mquizStudents[mquizIndex];
+    document.getElementById('mquiz-progress-bar').style.width = (mquizIndex / total * 100) + '%';
+    document.getElementById('mquiz-progress-text').textContent = `שאלה ${mquizIndex + 1} מתוך ${total}`;
+    document.getElementById('mquiz-photo').src = student.photo;
+    const emojiEl = document.getElementById('mquiz-emoji-hint');
+    if (student.emoji) { emojiEl.textContent = student.emoji; emojiEl.style.display = 'block'; }
+    else { emojiEl.style.display = 'none'; }
+    const letterEl = document.getElementById('mquiz-letter-hint');
+    if (mquizHints) {
+        const ans = getMQuizExpected(student);
+        letterEl.textContent = ans.length > 2 ? ans.slice(0, 2) + '....' : ans;
+        letterEl.style.display = 'block';
+    } else { letterEl.style.display = 'none'; }
+    const input = document.getElementById('mquiz-input');
+    input.value = '';
+    input.className = 'mquiz-input';
+    input.disabled = false;
+    input.placeholder = mquizMode === 'first' ? 'כתוב שם פרטי...' : mquizMode === 'last' ? 'כתוב שם משפחה...' : 'כתוב שם מלא...';
+    document.getElementById('btn-mquiz-submit').disabled = false;
+    document.getElementById('mquiz-result-panel').style.display = 'none';
+    document.getElementById('mquiz-btn-next').style.display = 'none';
+    setTimeout(() => { try { input.focus(); } catch(e){} }, 150);
+}
+function submitMAnswer() {
+    const student = mquizStudents[mquizIndex];
+    const typed = document.getElementById('mquiz-input').value.trim();
+    if (!typed) { showToast('כתוב תשובה תחילה'); return; }
+    const expected = getMQuizExpected(student);
+    const isCorrect = typed.trim().replace(/\s+/g,' ') === expected.trim().replace(/\s+/g,' ');
+    const input = document.getElementById('mquiz-input');
+    input.className = 'mquiz-input ' + (isCorrect ? 'correct' : 'wrong');
+    input.disabled = true;
+    document.getElementById('btn-mquiz-submit').disabled = true;
+    const resultPanel = document.getElementById('mquiz-result-panel');
+    resultPanel.style.display = 'block';
+    const nextBtn = document.getElementById('mquiz-btn-next');
+    if (isCorrect) {
+        mquizCorrect++;
+        student.correct = (student.correct || 0) + 1;
+        saveData();
+        resultPanel.className = 'mquiz-result correct';
+        const msgs = ['מעולה! 🎉', 'כל הכבוד! 👏', 'נכון! 🌟', 'יפה מאוד! ✨', 'מדהים! 💪'];
+        resultPanel.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+        playCorrectSound();
+        nextBtn.style.display = 'none';
+        setTimeout(mquizNext, 2000);
+    } else {
+        mquizWrong++;
+        student.wrong = (student.wrong || 0) + 1;
+        saveData();
+        resultPanel.className = 'mquiz-result wrong';
+        resultPanel.textContent = `התשובה הנכונה: ${expected}`;
+        nextBtn.style.display = 'block';
+        nextBtn.textContent = mquizIndex === mquizStudents.length - 1 ? 'סיים מבחן ←' : 'השאלה הבאה ←';
+    }
+}
+function mquizNext() {
+    mquizIndex++;
+    if (mquizIndex >= mquizStudents.length) showSummary('mquiz');
+    else renderMQuestion();
 }
 </script>
 </body>
