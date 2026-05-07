@@ -795,6 +795,33 @@
         </div>
     </div>
 
+    <!-- LAST NAME IMPORT MODAL -->
+    <div class="settings-overlay" id="lastname-overlay" onclick="closeLastNameImport(event)">
+        <div class="settings-box" style="max-width:400px;">
+            <h3>📋 השלם שמות משפחה מקובץ</h3>
+            <p class="settings-desc">העלה קובץ טקסט עם שם מלא בכל שורה. האפליקציה תמצא תלמידים עם שם פרטי ייחודי ותשלים להם את שם המשפחה.</p>
+            <div style="margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;margin-bottom:8px;">
+                    <input type="radio" name="ln-format" value="first-last" checked> שם פרטי ואחריו שם משפחה
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;">
+                    <input type="radio" name="ln-format" value="last-first"> שם משפחה ואחריו שם פרטי
+                </label>
+            </div>
+            <div style="border:2px dashed #0ea5e9;border-radius:12px;padding:20px;text-align:center;cursor:pointer;margin-bottom:14px;" onclick="document.getElementById('lastname-file-input').click()">
+                <div style="font-size:2rem;margin-bottom:6px;">📄</div>
+                <div style="color:#6b7280;font-size:0.9rem;">לחץ לבחירת קובץ טקסט</div>
+                <div style="color:#c0c0c0;font-size:0.78rem;margin-top:4px;">.txt — שם אחד בכל שורה</div>
+            </div>
+            <input type="file" id="lastname-file-input" accept=".txt,.csv,text/*" style="display:none" onchange="handleLastNameFile(event)">
+            <div id="lastname-preview" style="display:none;margin-bottom:14px;max-height:200px;overflow-y:auto;border-radius:10px;"></div>
+            <div class="settings-row">
+                <button class="btn-settings-save" id="lastname-apply-btn" onclick="applyLastNames()" style="display:none">✅ החל שינויים</button>
+                <button class="btn-settings-cancel" onclick="closeLastNameImport()">סגור</button>
+            </div>
+        </div>
+    </div>
+
 </main>
 <div id="toast"></div>
 
@@ -1271,8 +1298,30 @@ function showGallery(cls) {
     const cont = document.getElementById('gallery-content');
     cont.innerHTML = '';
 
+    // Gallery toolbar
+    const _galCls = isAll ? undefined : isNone ? null : cls;
+    const toolbar = document.createElement('div');
+    toolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;';
+
+    const importBtn = document.createElement('button');
+    importBtn.style.cssText = 'background:#0ea5e9;color:white;padding:10px 12px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:0.82rem;font-weight:700;flex:1;';
+    importBtn.innerHTML = '📋 השלם שמות משפחה';
+    importBtn.onclick = () => openLastNameImport(_galCls);
+
+    const exportBtn = document.createElement('button');
+    exportBtn.style.cssText = 'background:#7c3aed;color:white;padding:10px 12px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:0.82rem;font-weight:700;flex:1;';
+    exportBtn.innerHTML = '📤 ייצא גלריה';
+    exportBtn.onclick = () => exportGallery(_galCls);
+
+    toolbar.appendChild(importBtn);
+    toolbar.appendChild(exportBtn);
+    cont.appendChild(toolbar);
+
     if (filtered.length === 0) {
-        cont.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div>אין תלמידים בקטגוריה זו</div></div>';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.innerHTML = '<div class="empty-icon">👥</div><div>אין תלמידים בקטגוריה זו</div>';
+        cont.appendChild(emptyDiv);
     } else if (isAll && getClasses().length > 0) {
         // Group by class
         const groups = {};
@@ -2042,6 +2091,167 @@ function mquizNext() {
     mquizIndex++;
     if (mquizIndex >= mquizStudents.length) showSummary('mquiz');
     else renderMQuestion();
+}
+
+// ===== EXPORT GALLERY =====
+function exportGallery(cls) {
+    const isAll  = cls === undefined;
+    const isNone = cls === null;
+    const filtered = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === cls);
+    if (filtered.length === 0) { showToast('אין תלמידים לייצוא'); return; }
+
+    const title = isAll ? 'כל התלמידים' : isNone ? 'ללא כיתה' : cls;
+    const date  = new Date().toLocaleDateString('he-IL');
+
+    const cardsHtml = filtered.map(s => {
+        const parts     = s.name.trim().split(/\s+/);
+        const firstName = parts[0];
+        const lastName  = parts.slice(1).join(' ');
+        const nameHtml  = lastName
+            ? `<div class="fname">${firstName}</div><div class="lname">${lastName}</div>`
+            : `<div class="fname">${firstName}</div>`;
+        return `<div class="card"><img src="${s.photo}" alt="${s.name}">${nameHtml}</div>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head><meta charset="UTF-8"><title>גלריה — ${title}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:Arial,sans-serif;background:#f5f5f5;direction:rtl;}
+  .topbar{background:#1d4ed8;color:white;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;}
+  .topbar h1{font-size:1.15rem;}
+  .topbar p{font-size:0.82rem;opacity:0.8;margin-top:2px;}
+  .btn-print{background:white;color:#1d4ed8;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-size:0.9rem;font-weight:700;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;padding:20px;}
+  .card{background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.1);text-align:center;}
+  .card img{width:100%;height:130px;object-fit:cover;object-position:top;display:block;}
+  .fname{padding:7px 6px 1px;font-size:0.92rem;font-weight:800;color:#1e293b;}
+  .lname{padding:0 6px 7px;font-size:0.8rem;color:#6b7280;font-weight:600;}
+  @media print{
+    .topbar .btn-print{display:none;}
+    body{background:white;}
+    .card{break-inside:avoid;box-shadow:none;border:1px solid #e5e7eb;}
+  }
+</style></head>
+<body>
+<div class="topbar">
+  <div><h1>🎓 ${title}</h1><p>${filtered.length} תלמידים · ${date}</p></div>
+  <button class="btn-print" onclick="window.print()">🖨️ הדפס / שמור PDF</button>
+</div>
+<div class="grid">${cardsHtml}</div>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) { showToast('⚠️ אפשר פתיחת חלון חדש בדפדפן'); return; }
+    win.document.write(html);
+    win.document.close();
+}
+
+// ===== LAST NAME IMPORT =====
+let lastNameMatches = [];
+let lastNameImportClass;
+
+function openLastNameImport(cls) {
+    lastNameImportClass = cls;
+    lastNameMatches = [];
+    document.getElementById('lastname-preview').style.display = 'none';
+    document.getElementById('lastname-apply-btn').style.display = 'none';
+    document.getElementById('lastname-file-input').value = '';
+    document.querySelectorAll('input[name="ln-format"]')[0].checked = true;
+    document.getElementById('lastname-overlay').classList.add('open');
+}
+function closeLastNameImport(e) {
+    if (e && e.target !== document.getElementById('lastname-overlay')) return;
+    document.getElementById('lastname-overlay').classList.remove('open');
+}
+function handleLastNameFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => processLastNameFile(ev.target.result);
+    reader.readAsText(file, 'UTF-8');
+}
+function processLastNameFile(text) {
+    const flipped = document.querySelector('input[name="ln-format"]:checked').value === 'last-first';
+    const lines = text.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+
+    const cls = lastNameImportClass;
+    const isAll = cls === undefined;
+    const isNone = cls === null;
+    const pool = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === cls);
+
+    lastNameMatches = [];
+
+    lines.forEach(line => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 2) return;
+
+        let firstName, lastName;
+        if (flipped) {
+            lastName = parts[0];
+            firstName = parts.slice(1).join(' ');
+        } else {
+            firstName = parts[0];
+            lastName = parts.slice(1).join(' ');
+        }
+
+        const matches = pool.filter(s => s.name.trim().split(/\s+/)[0] === firstName);
+
+        if (matches.length === 1) {
+            const s = matches[0];
+            const sFirst = s.name.trim().split(/\s+/)[0];
+            lastNameMatches.push({ student: s, newName: sFirst + ' ' + lastName, status: 'match' });
+        } else if (matches.length > 1) {
+            lastNameMatches.push({ firstName, lastName, status: 'ambiguous', count: matches.length });
+        }
+    });
+
+    renderLastNamePreview();
+}
+function renderLastNamePreview() {
+    const preview = document.getElementById('lastname-preview');
+    if (lastNameMatches.length === 0) {
+        preview.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:10px;">לא נמצאו התאמות</div>';
+        preview.style.display = 'block';
+        document.getElementById('lastname-apply-btn').style.display = 'none';
+        return;
+    }
+
+    const matchCount = lastNameMatches.filter(m => m.status === 'match').length;
+    const ambigCount = lastNameMatches.filter(m => m.status === 'ambiguous').length;
+
+    let html = `<div style="font-size:0.82rem;color:#6b7280;margin-bottom:8px;">${matchCount} התאמות נמצאו${ambigCount ? ` · ${ambigCount} שם פרטי כפול (ידולגו)` : ''}</div>`;
+
+    lastNameMatches.forEach(m => {
+        if (m.status === 'match') {
+            html += `<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:#f0fdf4;border-radius:8px;margin-bottom:4px;font-size:0.85rem;">
+                <span style="color:#10b981;">✓</span>
+                <span style="color:#9ca3af;text-decoration:line-through;">${m.student.name}</span>
+                <span style="color:#374151;">→ <strong>${m.newName}</strong></span>
+            </div>`;
+        } else {
+            html += `<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:#fef9c3;border-radius:8px;margin-bottom:4px;font-size:0.85rem;">
+                <span>⚠️</span>
+                <span style="color:#92400e;">"${m.firstName}" — ${m.count} תלמידים עם שם זה, לא ניתן לזהות</span>
+            </div>`;
+        }
+    });
+
+    preview.innerHTML = html;
+    preview.style.display = 'block';
+    document.getElementById('lastname-apply-btn').style.display = matchCount > 0 ? 'block' : 'none';
+}
+function applyLastNames() {
+    let applied = 0;
+    lastNameMatches.filter(m => m.status === 'match').forEach(m => {
+        const s = students.find(x => x.id === m.student.id);
+        if (s) { s.name = m.newName; applied++; }
+    });
+    saveData();
+    document.getElementById('lastname-overlay').classList.remove('open');
+    showGallery(lastNameImportClass);
+    showToast(`✅ ${applied} שמות עודכנו!`);
 }
 </script>
 </body>
