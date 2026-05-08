@@ -2168,9 +2168,32 @@ function closeLastNameImport(e) {
 function handleLastNameFile(e) {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => processLastNameFile(ev.target.result);
-    reader.readAsText(file, 'UTF-8');
+    // Try UTF-8 first; if no Hebrew characters found, retry as windows-1255
+    const r1 = new FileReader();
+    r1.onload = ev => {
+        const text = ev.target.result;
+        if (/[\u05D0-\u05EA]/.test(text)) {
+            processLastNameFile(text);
+        } else {
+            const r2 = new FileReader();
+            r2.onload = ev2 => processLastNameFile(ev2.target.result);
+            r2.readAsText(file, 'windows-1255');
+        }
+    };
+    r1.readAsText(file, 'UTF-8');
+}
+function extractNameFromLine(line) {
+    // Handle tab-separated format (e.g. "1\tכהן דוד\t123456\t...")
+    // Find the column that looks like a Hebrew name (letters + spaces only)
+    if (line.includes('\t')) {
+        const cols = line.split('\t');
+        const nameCol = cols.find(c => {
+            const t = c.trim();
+            return t.length > 1 && /^[\u05D0-\u05EA\s'"-]+$/.test(t);
+        });
+        return nameCol ? nameCol.trim() : null;
+    }
+    return line.trim();
 }
 function processLastNameFile(text) {
     const flipped = document.querySelector('input[name="ln-format"]:checked').value === 'last-first';
@@ -2184,7 +2207,10 @@ function processLastNameFile(text) {
     lastNameMatches = [];
 
     lines.forEach(line => {
-        const parts = line.trim().split(/\s+/);
+        const namePart = extractNameFromLine(line);
+        if (!namePart) return;
+
+        const parts = namePart.split(/\s+/);
         if (parts.length < 2) return;
 
         let firstName, lastName;
@@ -2199,9 +2225,8 @@ function processLastNameFile(text) {
         const matches = pool.filter(s => s.name.trim().split(/\s+/)[0] === firstName);
 
         if (matches.length === 1) {
-            const s = matches[0];
-            const sFirst = s.name.trim().split(/\s+/)[0];
-            lastNameMatches.push({ student: s, newName: sFirst + ' ' + lastName, status: 'match' });
+            const sFirst = matches[0].name.trim().split(/\s+/)[0];
+            lastNameMatches.push({ student: matches[0], newName: sFirst + ' ' + lastName, status: 'match' });
         } else if (matches.length > 1) {
             lastNameMatches.push({ firstName, lastName, status: 'ambiguous', count: matches.length });
         }
