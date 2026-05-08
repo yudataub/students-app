@@ -1288,6 +1288,21 @@ function saveBulk() {
 
 // ===== GALLERY =====
 let currentGalleryClass;
+let gallerySortMode = 'none'; // 'none' | 'first' | 'last'
+
+function sortStudents(arr) {
+    if (gallerySortMode === 'first') {
+        return [...arr].sort((a, b) => a.name.trim().split(/\s+/)[0].localeCompare(b.name.trim().split(/\s+/)[0], 'he'));
+    }
+    if (gallerySortMode === 'last') {
+        return [...arr].sort((a, b) => {
+            const ap = a.name.trim().split(/\s+/), bp = b.name.trim().split(/\s+/);
+            return ap[ap.length - 1].localeCompare(bp[bp.length - 1], 'he');
+        });
+    }
+    return arr;
+}
+
 function showGallery(cls) {
     currentGalleryClass = cls;
     const isAll  = cls === undefined;
@@ -1301,7 +1316,7 @@ function showGallery(cls) {
     // Gallery toolbar
     const _galCls = isAll ? undefined : isNone ? null : cls;
     const toolbar = document.createElement('div');
-    toolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;';
+    toolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;';
 
     const importBtn = document.createElement('button');
     importBtn.style.cssText = 'background:#0ea5e9;color:white;padding:10px 12px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:0.82rem;font-weight:700;flex:1;';
@@ -1316,6 +1331,24 @@ function showGallery(cls) {
     toolbar.appendChild(importBtn);
     toolbar.appendChild(exportBtn);
     cont.appendChild(toolbar);
+
+    // Sort bar
+    const sortBar = document.createElement('div');
+    sortBar.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:12px;';
+    const sortLabel = document.createElement('span');
+    sortLabel.style.cssText = 'font-size:0.75rem;color:#9ca3af;font-weight:700;flex-shrink:0;';
+    sortLabel.textContent = 'מיון:';
+    sortBar.appendChild(sortLabel);
+
+    [['none','ברירת מחדל'],['first','שם פרטי'],['last','שם משפחה']].forEach(([mode, label]) => {
+        const btn = document.createElement('button');
+        const active = gallerySortMode === mode;
+        btn.style.cssText = `padding:5px 10px;border-radius:8px;border:1.5px solid ${active ? '#3b82f6' : '#e5e7eb'};background:${active ? '#eff6ff' : 'white'};color:${active ? '#1d4ed8' : '#6b7280'};font-size:0.78rem;font-weight:${active ? '700' : '500'};cursor:pointer;font-family:inherit;`;
+        btn.textContent = label;
+        btn.onclick = () => { gallerySortMode = mode; showGallery(cls); };
+        sortBar.appendChild(btn);
+    });
+    cont.appendChild(sortBar);
 
     if (filtered.length === 0) {
         const emptyDiv = document.createElement('div');
@@ -1336,13 +1369,13 @@ function showGallery(cls) {
             cont.appendChild(label);
             const grid = document.createElement('div');
             grid.className = 'gallery-grid';
-            groups[key].forEach(s => grid.appendChild(makeStudentCard(s)));
+            sortStudents(groups[key]).forEach(s => grid.appendChild(makeStudentCard(s)));
             cont.appendChild(grid);
         });
     } else {
         const grid = document.createElement('div');
         grid.className = 'gallery-grid';
-        filtered.forEach(s => grid.appendChild(makeStudentCard(s)));
+        sortStudents(filtered).forEach(s => grid.appendChild(makeStudentCard(s)));
         cont.appendChild(grid);
     }
     showView('gallery', title);
