@@ -2451,10 +2451,29 @@ function removeFirebaseConfig() {
     showToast('הסנכרון הוסר');
 }
 
-// Sync on page hide (tab close / navigate away)
+// Sync on page hide (tab close / navigate away); pull on page show (e.g. tablet waking up)
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden' && _fbUser) cloudSaveNow();
+    if (!_fbUser) return;
+    if (document.visibilityState === 'hidden') {
+        cloudSaveNow();
+    } else {
+        _checkAndPullCloud();
+    }
 });
+
+async function _checkAndPullCloud() {
+    if (!_fbUser || !_fbStorage) return;
+    const localLastSync = parseInt(localStorage.getItem('cloudLastSync') || '0');
+    try {
+        const ref = _fbStorage.ref(`teachers/${_fbUser.uid}/data.json`);
+        const url = await ref.getDownloadURL();
+        const cloud = await fetch(url + '&t=' + Date.now()).then(r => r.json()); // cache-bust
+        if (cloud.ts && cloud.ts > localLastSync && cloud.students && cloud.students.length > 0) {
+            _applyCloudData(cloud); // also saves cloudLastSync and calls renderHome()
+            showToast(`☁️ עודכן מהענן: ${cloud.students.length} תלמידים`);
+        }
+    } catch {} // no cloud data or network error — silently ignore
+}
 
 // AI emoji generation
 async function generateEmoji() {
