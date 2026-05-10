@@ -570,6 +570,17 @@
         .classroom-seat.drag-target:hover { border-color:#1d4ed8 !important; border-style:solid !important; background:#eff6ff !important; cursor:pointer; }
         .classroom-seat.quiz-revealed { border-color:#f59e0b !important; border-style:solid !important; background:#fffbeb !important; }
         .seat-photo-hidden { background:#e5e7eb; display:flex; align-items:center; justify-content:center; color:#9ca3af; }
+        /* FACE DETECTION */
+        .face-cards-grid { display:flex; flex-wrap:wrap; gap:10px; padding:4px 2px; }
+        .face-card { position:relative; display:flex; flex-direction:column; align-items:center; gap:5px; width:82px; }
+        .face-card img { width:82px; height:82px; object-fit:cover; object-position:top; border-radius:12px; border:2px solid #e5e7eb; display:block; }
+        .face-card input { width:82px; padding:5px 6px; border:1.5px solid #e5e7eb; border-radius:8px; font-family:inherit; font-size:0.78rem; direction:rtl; text-align:center; box-sizing:border-box; }
+        .face-card input:focus { outline:none; border-color:#8b5cf6; }
+        .face-card input.named { border-color:#10b981; background:#f0fdf4; }
+        .face-card-del { position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; background:#ef4444; color:white; border:none; cursor:pointer; font-size:0.65rem; display:flex; align-items:center; justify-content:center; font-weight:700; }
+        .face-detect-loading { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; gap:12px; color:#6b7280; }
+        .face-detect-spinner { width:40px; height:40px; border:4px solid #e5e7eb; border-top-color:#8b5cf6; border-radius:50%; animation:spin 0.8s linear infinite; }
+        @keyframes spin { to { transform:rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -909,14 +920,43 @@
                     <div style="font-size:0.9rem;">לחץ על "בחר תמונה" להעלאת תמונת כיתה</div>
                 </div>
             </div>
-            <div style="padding:12px 14px;display:flex;gap:8px;flex-shrink:0;">
-                <button onclick="document.getElementById('group-photo-input').click()" style="flex:1;padding:10px 6px;background:#3b82f6;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">🖼️ בחר תמונה</button>
-                <button id="crop-confirm-btn" onclick="confirmCrop()" style="display:none;flex:1;padding:10px 6px;background:#10b981;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">✂️ גזור ושמור</button>
-                <button id="crop-redo-btn" onclick="resetCropCircle()" style="display:none;flex:1;padding:10px 6px;background:#fef3c7;color:#b45309;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">↺ נסה שוב</button>
-                <button onclick="closeCropModal()" style="flex:1;padding:10px 6px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">ביטול</button>
+            <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+                <div style="display:flex;gap:8px;">
+                    <button onclick="document.getElementById('group-photo-input').click()" style="flex:1;padding:10px 6px;background:#3b82f6;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">🖼️ בחר תמונה</button>
+                    <button id="crop-confirm-btn" onclick="confirmCrop()" style="display:none;flex:1;padding:10px 6px;background:#10b981;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">✂️ גזור ושמור</button>
+                    <button id="crop-redo-btn" onclick="resetCropCircle()" style="display:none;flex:1;padding:10px 6px;background:#fef3c7;color:#b45309;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">↺ נסה שוב</button>
+                    <button onclick="closeCropModal()" style="flex:1;padding:10px 6px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">ביטול</button>
+                </div>
+                <button id="crop-detect-all-btn" onclick="detectAllFacesInPhoto()" style="display:none;width:100%;padding:11px;background:linear-gradient(135deg,#7c3aed,#ec4899);color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;font-weight:700;cursor:pointer;">🤖 זהה את כל הפנים בתמונה</button>
             </div>
         </div>
         <input type="file" id="group-photo-input" accept="image/*" style="display:none" onchange="loadGroupPhoto(event)">
+    </div>
+
+    <!-- FACE DETECTION NAMING OVERLAY -->
+    <div class="settings-overlay" id="face-naming-overlay" onclick="closeFaceNaming(event)">
+        <div style="background:white;border-radius:20px;padding:0;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;">
+            <div style="padding:14px 16px 12px;border-bottom:1px solid #f3f4f6;flex-shrink:0;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div id="face-naming-title" style="font-weight:800;font-size:1rem;">🤖 זיהוי פנים</div>
+                    <button onclick="closeFaceNaming()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
+                </div>
+                <div id="face-naming-subtitle" style="font-size:0.78rem;color:#6b7280;margin-top:3px;">הוסף שם לכל פנים שזוהו</div>
+            </div>
+            <div style="padding:10px 16px;border-bottom:1px solid #f3f4f6;flex-shrink:0;">
+                <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:6px;">כיתה:</label>
+                <select id="face-detect-class" onchange="onClassSelectChange('face-detect-class','face-detect-new-class-wrap')" style="width:100%;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:inherit;font-size:0.9rem;direction:rtl;box-sizing:border-box;">
+                    <option value="">ללא שיוך לכיתה</option>
+                </select>
+                <div class="new-class-wrap" id="face-detect-new-class-wrap">
+                    <input type="text" id="face-detect-new-class" placeholder="שם הכיתה החדשה" style="width:100%;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:inherit;font-size:0.88rem;direction:rtl;box-sizing:border-box;margin-top:6px;">
+                </div>
+            </div>
+            <div id="face-naming-body" style="flex:1;overflow-y:auto;padding:14px 16px;"></div>
+            <div style="padding:12px 16px;border-top:1px solid #f3f4f6;flex-shrink:0;">
+                <button id="face-naming-save-btn" onclick="saveFaceNamingGroup()" style="width:100%;padding:13px;background:#8b5cf6;color:white;border:none;border-radius:12px;font-family:inherit;font-size:0.95rem;font-weight:700;cursor:pointer;">💾 שמור את כולם</button>
+            </div>
+        </div>
     </div>
 
     <!-- CLASSROOM SETUP MODAL -->
@@ -2341,6 +2381,7 @@ function openCropModal() {
     cropOrigImage = null; cropCircle = null; cropDrawing = false;
     document.getElementById('crop-confirm-btn').style.display = 'none';
     document.getElementById('crop-redo-btn').style.display = 'none';
+    document.getElementById('crop-detect-all-btn').style.display = 'none';
     document.getElementById('crop-placeholder').style.display = 'flex';
     document.getElementById('crop-canvas').style.display = 'none';
     document.getElementById('crop-instruction').textContent = 'לחץ לבחירת תמונת קבוצה';
@@ -2382,6 +2423,7 @@ function loadGroupPhoto(e) {
             document.getElementById('crop-instruction').textContent = 'לחץ על מרכז הפנים וגרור לסימון עיגול ✋';
             document.getElementById('crop-confirm-btn').style.display = 'none';
             document.getElementById('crop-redo-btn').style.display = 'none';
+            document.getElementById('crop-detect-all-btn').style.display = 'block';
             setupCropEvents();
         };
         img.src = ev.target.result;
@@ -3211,6 +3253,173 @@ function openLastNameImport(cls) {
 function closeLastNameImport(e) {
     if (e && e.target !== document.getElementById('lastname-overlay')) return;
     document.getElementById('lastname-overlay').classList.remove('open');
+}
+
+// ===== FACE DETECTION FROM GROUP PHOTO =====
+let detectedFaceCards = []; // [{ photo: dataUrl, name: '' }]
+
+function loadFaceApiLib() {
+    if (window._faceApiReady) return Promise.resolve(window.faceapi);
+    return new Promise((resolve, reject) => {
+        if (window.faceapi) {
+            // Library loaded but models might not be
+            faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model')
+                .then(() => { window._faceApiReady = true; resolve(window.faceapi); })
+                .catch(reject);
+            return;
+        }
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js';
+        s.onload = () => {
+            faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model')
+                .then(() => { window._faceApiReady = true; resolve(window.faceapi); })
+                .catch(reject);
+        };
+        s.onerror = () => reject(new Error('לא ניתן לטעון את ספריית זיהוי הפנים'));
+        document.head.appendChild(s);
+    });
+}
+
+async function detectAllFacesInPhoto() {
+    if (!cropOrigImage) { showToast('⚠️ העלה תמונה קודם'); return; }
+    // Show loading state
+    const body = document.getElementById('face-naming-body');
+    document.getElementById('face-naming-title').textContent = '🤖 מזהה פנים...';
+    document.getElementById('face-naming-subtitle').textContent = 'אנא המתן — טוען מודל זיהוי פנים';
+    body.innerHTML = '<div class="face-detect-loading"><div class="face-detect-spinner"></div><div>מזהה פנים בתמונה...</div></div>';
+    document.getElementById('face-naming-save-btn').style.display = 'none';
+    populateClassSelect('face-detect-class');
+    document.getElementById('face-naming-overlay').classList.add('open');
+
+    try {
+        await loadFaceApiLib();
+        const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.25 });
+        const detections = await faceapi.detectAllFaces(cropOrigImage, opts);
+
+        if (!detections.length) {
+            body.innerHTML = '<div class="face-detect-loading"><div style="font-size:2.5rem;">😕</div><div style="text-align:center;">לא זוהו פנים בתמונה.<br><small>נסה תמונה ברורה יותר או קרובה יותר</small></div></div>';
+            document.getElementById('face-naming-title').textContent = '🤖 זיהוי פנים';
+            document.getElementById('face-naming-subtitle').textContent = 'לא נמצאו פנים';
+            return;
+        }
+
+        // Sort top-to-bottom, left-to-right (reading order)
+        detections.sort((a, b) => {
+            const rowA = Math.floor(a.box.y / 60), rowB = Math.floor(b.box.y / 60);
+            return rowA !== rowB ? rowA - rowB : a.box.x - b.box.x;
+        });
+
+        detectedFaceCards = detections.map(det => ({
+            photo: cropFaceBox(det.box),
+            name: ''
+        }));
+
+        document.getElementById('face-naming-title').textContent = `🤖 זוהו ${detections.length} פנים`;
+        document.getElementById('face-naming-subtitle').textContent = 'הוסף שם לכל תמונה — ניתן לדלג על פנים לא מוכרות';
+        document.getElementById('face-naming-save-btn').style.display = 'block';
+        renderFaceNamingGrid();
+    } catch (err) {
+        body.innerHTML = `<div class="face-detect-loading"><div style="font-size:2.5rem;">⚠️</div><div style="text-align:center;">שגיאה בזיהוי פנים:<br><small>${err.message}</small></div></div>`;
+        document.getElementById('face-naming-title').textContent = '🤖 זיהוי פנים';
+        document.getElementById('face-naming-subtitle').textContent = 'אירעה שגיאה';
+    }
+}
+
+function cropFaceBox(box) {
+    const img = cropOrigImage;
+    // Add generous padding around the face for hair/forehead
+    const padX = box.width * 0.55;
+    const padTop = box.height * 0.8;
+    const padBot = box.height * 0.35;
+
+    const sx = Math.max(0, box.x - padX);
+    const sy = Math.max(0, box.y - padTop);
+    const ex = Math.min(img.naturalWidth, box.x + box.width + padX);
+    const ey = Math.min(img.naturalHeight, box.y + box.height + padBot);
+    const sw = ex - sx, sh = ey - sy;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 240;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, 240, 240);
+    return canvas.toDataURL('image/jpeg', 0.88);
+}
+
+function renderFaceNamingGrid() {
+    const body = document.getElementById('face-naming-body');
+    body.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'face-cards-grid';
+
+    detectedFaceCards.forEach((face, idx) => {
+        const card = document.createElement('div');
+        card.className = 'face-card';
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'face-card-del';
+        delBtn.textContent = '✕';
+        delBtn.title = 'הסר פנים אלה';
+        delBtn.onclick = () => { detectedFaceCards.splice(idx, 1); renderFaceNamingGrid(); updateFaceNamingCount(); };
+
+        const img = document.createElement('img');
+        img.src = face.photo;
+        img.alt = face.name || '?';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'שם...';
+        input.value = face.name;
+        if (face.name) input.className = 'named';
+        input.oninput = () => {
+            detectedFaceCards[idx].name = input.value;
+            input.className = input.value.trim() ? 'named' : '';
+            updateFaceNamingCount();
+        };
+
+        card.appendChild(delBtn);
+        card.appendChild(img);
+        card.appendChild(input);
+        grid.appendChild(card);
+    });
+
+    body.appendChild(grid);
+    updateFaceNamingCount();
+}
+
+function updateFaceNamingCount() {
+    const named = detectedFaceCards.filter(f => f.name.trim()).length;
+    const total = detectedFaceCards.length;
+    const btn = document.getElementById('face-naming-save-btn');
+    btn.textContent = named > 0
+        ? `💾 שמור ${named} תלמידים${total > named ? ` (מתוך ${total})` : ''}`
+        : '💾 שמור את כולם';
+}
+
+function closeFaceNaming(e) {
+    if (e && e.target !== document.getElementById('face-naming-overlay')) return;
+    document.getElementById('face-naming-overlay').classList.remove('open');
+}
+
+function saveFaceNamingGroup() {
+    const named = detectedFaceCards.filter(f => f.name.trim());
+    if (!named.length) { showToast('⚠️ הוסף שם לפחות לתלמיד אחד'); return; }
+    const className = getSelectedClass('face-detect-class', 'face-detect-new-class');
+    named.forEach(face => {
+        students.push({
+            id: generateId(),
+            name: face.name.trim(),
+            photo: face.photo,
+            className,
+            association: '',
+            correct: 0, wrong: 0
+        });
+    });
+    saveData();
+    showToast(`✅ נשמרו ${named.length} תלמידים!`);
+    document.getElementById('face-naming-overlay').classList.remove('open');
+    document.getElementById('crop-overlay').classList.remove('open');
+    renderHome();
+    showView('home');
 }
 
 // ===== NAMES LIST PICKER =====
