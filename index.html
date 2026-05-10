@@ -2353,10 +2353,10 @@ function _getCloudSnapshot() {
         const k = localStorage.key(i);
         if (k.startsWith('seating_')) seating[k] = JSON.parse(localStorage.getItem(k));
     }
-    // Firestore forbids empty-string field names — encode '' as '__noclass__'
+    // Firestore forbids empty-string field names — encode '' as 'NO_CLASS'
     const namesMap = {};
     Object.entries(importedNamesMap).forEach(([k, v]) => {
-        namesMap[k === '' ? '__noclass__' : k] = v;
+        namesMap[k === '' ? 'NO_CLASS' : k] = v;
     });
     // Strip base64 photos to stay within Firestore 1MB doc limit
     const studentsNoPhoto = students.map(s => { const c = {...s}; delete c.photo; return c; });
@@ -2366,10 +2366,10 @@ function _getCloudSnapshot() {
 function _applyCloudData(data) {
     students = data.students || [];
     if (data.importedNamesMap) {
-        // Decode '__noclass__' back to '' for legacy entries
+        // Decode 'NO_CLASS' back to '' for legacy entries
         const namesMap = {};
         Object.entries(data.importedNamesMap).forEach(([k, v]) => {
-            namesMap[k === '__noclass__' ? '' : k] = v;
+            namesMap[k === 'NO_CLASS' ? '' : k] = v;
         });
         importedNamesMap = namesMap;
         localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
