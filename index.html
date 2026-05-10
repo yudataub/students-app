@@ -2371,7 +2371,10 @@ async function _readCloudData(uid) {
     const data = mainSnap.data();
     const photosMap = {};
     photosSnap.forEach(d => { photosMap[d.id] = d.data().photo; });
+    console.log('[readCloud] students:', (data.students||[]).length, '| photos in subcollection:', photosSnap.size, '| sample IDs:', Object.keys(photosMap).slice(0,3));
     data.students = (data.students || []).map(s => ({ ...s, photo: photosMap[s.id] || s.photo || null }));
+    const withPhoto = data.students.filter(s => s.photo).length;
+    console.log('[readCloud] students with photo after merge:', withPhoto);
     return data;
 }
 
