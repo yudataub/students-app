@@ -601,6 +601,14 @@
             <img id="photo-preview" style="display:none" alt="">
         </div>
         <input type="file" id="photo-input" accept="image/*" onchange="handlePhoto(event)">
+        <div style="display:flex;align-items:center;gap:10px;margin:-4px 0 14px;">
+            <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+            <span style="font-size:0.78rem;color:#9ca3af;font-weight:600;">או</span>
+            <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+        </div>
+        <button onclick="openCropModal()" style="width:100%;padding:12px 16px;background:#ec4899;color:white;border:none;border-radius:12px;font-size:0.92rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px;">
+            <span style="font-size:1.2rem;">📸</span> בחר ילד מתמונת קבוצה
+        </button>
         <div class="form-group">
             <label>שם מלא</label>
             <input type="text" id="input-name" placeholder="שם פרטי ושם משפחה">
@@ -831,6 +839,30 @@
     <!-- CLASSROOM VIEW -->
     <div id="view-classroom" class="view">
         <div id="classroom-content"></div>
+    </div>
+
+    <!-- GROUP PHOTO CROP MODAL -->
+    <div class="settings-overlay" id="crop-overlay" onclick="closeCropModal(event)">
+        <div style="background:white;border-radius:20px;width:100%;max-width:480px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:92vh;display:flex;flex-direction:column;">
+            <div style="padding:14px 18px 10px;border-bottom:1px solid #f3f4f6;flex-shrink:0;">
+                <div style="font-weight:800;font-size:1rem;margin-bottom:3px;">📸 בחר ילד מתמונת קבוצה</div>
+                <div id="crop-instruction" style="font-size:0.8rem;color:#6b7280;">לחץ לבחירת תמונת קבוצה</div>
+            </div>
+            <div id="crop-canvas-wrap" style="flex:1;overflow:hidden;background:#111827;display:flex;align-items:center;justify-content:center;min-height:180px;position:relative;">
+                <canvas id="crop-canvas" style="display:none;max-width:100%;cursor:crosshair;touch-action:none;"></canvas>
+                <div id="crop-placeholder" style="color:#9ca3af;text-align:center;padding:40px 20px;">
+                    <div style="font-size:3.5rem;margin-bottom:8px;">🖼️</div>
+                    <div style="font-size:0.9rem;">לחץ על "בחר תמונה" להעלאת תמונת כיתה</div>
+                </div>
+            </div>
+            <div style="padding:12px 14px;display:flex;gap:8px;flex-shrink:0;">
+                <button onclick="document.getElementById('group-photo-input').click()" style="flex:1;padding:10px 6px;background:#3b82f6;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">🖼️ בחר תמונה</button>
+                <button id="crop-confirm-btn" onclick="confirmCrop()" style="display:none;flex:1;padding:10px 6px;background:#10b981;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">✂️ גזור ושמור</button>
+                <button id="crop-redo-btn" onclick="resetCropCircle()" style="display:none;flex:1;padding:10px 6px;background:#fef3c7;color:#b45309;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">↺ נסה שוב</button>
+                <button onclick="closeCropModal()" style="flex:1;padding:10px 6px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">ביטול</button>
+            </div>
+        </div>
+        <input type="file" id="group-photo-input" accept="image/*" style="display:none" onchange="loadGroupPhoto(event)">
     </div>
 
     <!-- CLASSROOM SETUP MODAL -->
@@ -2225,6 +2257,150 @@ function mquizNext() {
     mquizIndex++;
     if (mquizIndex >= mquizStudents.length) showSummary('mquiz');
     else renderMQuestion();
+}
+
+// ===== CROP FROM GROUP PHOTO =====
+let cropOrigImage = null;
+let cropDisplayScale = 1;
+let cropCircle = null;
+let cropDrawing = false;
+let cropStartPt = null;
+
+function openCropModal() {
+    cropOrigImage = null; cropCircle = null; cropDrawing = false;
+    document.getElementById('crop-confirm-btn').style.display = 'none';
+    document.getElementById('crop-redo-btn').style.display = 'none';
+    document.getElementById('crop-placeholder').style.display = 'flex';
+    document.getElementById('crop-canvas').style.display = 'none';
+    document.getElementById('crop-instruction').textContent = 'לחץ לבחירת תמונת קבוצה';
+    document.getElementById('group-photo-input').value = '';
+    document.getElementById('crop-overlay').classList.add('open');
+}
+function closeCropModal(e) {
+    if (e && e.target !== document.getElementById('crop-overlay')) return;
+    document.getElementById('crop-overlay').classList.remove('open');
+}
+function resetCropCircle() {
+    cropCircle = null;
+    document.getElementById('crop-confirm-btn').style.display = 'none';
+    document.getElementById('crop-redo-btn').style.display = 'none';
+    document.getElementById('crop-instruction').textContent = 'לחץ על מרכז הפנים וגרור כדי לסמן ✋';
+    redrawCropCanvas();
+}
+
+function loadGroupPhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+            cropOrigImage = img;
+            cropCircle = null;
+            const canvas = document.getElementById('crop-canvas');
+            const wrap = document.getElementById('crop-canvas-wrap');
+            const maxW = wrap.clientWidth || (window.innerWidth - 32);
+            const maxH = Math.min(window.innerHeight * 0.55, 380);
+            const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+            canvas.width  = Math.round(img.width  * scale);
+            canvas.height = Math.round(img.height * scale);
+            cropDisplayScale = scale;
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            document.getElementById('crop-placeholder').style.display = 'none';
+            canvas.style.display = 'block';
+            document.getElementById('crop-instruction').textContent = 'לחץ על מרכז הפנים וגרור לסימון עיגול ✋';
+            document.getElementById('crop-confirm-btn').style.display = 'none';
+            document.getElementById('crop-redo-btn').style.display = 'none';
+            setupCropEvents();
+        };
+        img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function setupCropEvents() {
+    const canvas = document.getElementById('crop-canvas');
+    const clone = canvas.cloneNode(true); // remove old listeners
+    canvas.parentNode.replaceChild(clone, canvas);
+    const c = document.getElementById('crop-canvas');
+
+    const getPos = ev => {
+        const rect = c.getBoundingClientRect();
+        const sx = c.width / rect.width, sy = c.height / rect.height;
+        const src = ev.touches ? ev.touches[0] : ev;
+        return { x: (src.clientX - rect.left) * sx, y: (src.clientY - rect.top) * sy };
+    };
+    const start = ev => { ev.preventDefault(); cropDrawing = true; cropStartPt = getPos(ev); cropCircle = null; };
+    const move  = ev => {
+        if (!cropDrawing) return;
+        ev.preventDefault();
+        const p = getPos(ev);
+        cropCircle = { cx: cropStartPt.x, cy: cropStartPt.y, r: Math.max(Math.hypot(p.x - cropStartPt.x, p.y - cropStartPt.y), 8) };
+        redrawCropCanvas();
+    };
+    const end   = ev => {
+        ev.preventDefault();
+        cropDrawing = false;
+        if (cropCircle && cropCircle.r > 12) {
+            document.getElementById('crop-confirm-btn').style.display = 'block';
+            document.getElementById('crop-redo-btn').style.display = 'block';
+            document.getElementById('crop-instruction').textContent = 'בדוק את הסימון — לחץ "גזור ושמור" או "נסה שוב"';
+        }
+    };
+    c.addEventListener('mousedown',  start, { passive: false });
+    c.addEventListener('mousemove',  move,  { passive: false });
+    c.addEventListener('mouseup',    end,   { passive: false });
+    c.addEventListener('touchstart', start, { passive: false });
+    c.addEventListener('touchmove',  move,  { passive: false });
+    c.addEventListener('touchend',   end,   { passive: false });
+}
+
+function redrawCropCanvas() {
+    const c = document.getElementById('crop-canvas');
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.drawImage(cropOrigImage, 0, 0, c.width, c.height);
+    if (!cropCircle) return;
+    // Dim outside
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(cropCircle.cx, cropCircle.cy, cropCircle.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // Border
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 3]);
+    ctx.beginPath();
+    ctx.arc(cropCircle.cx, cropCircle.cy, cropCircle.r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function confirmCrop() {
+    if (!cropOrigImage || !cropCircle) return;
+    const cx = cropCircle.cx / cropDisplayScale;
+    const cy = cropCircle.cy / cropDisplayScale;
+    const r  = cropCircle.r  / cropDisplayScale;
+    const size = Math.round(r * 2);
+    const out = document.createElement('canvas');
+    out.width = out.height = size;
+    const octx = out.getContext('2d');
+    octx.beginPath();
+    octx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+    octx.clip();
+    octx.drawImage(cropOrigImage, cx - r, cy - r, r * 2, r * 2, 0, 0, size, size);
+    resizeImage(out.toDataURL('image/jpeg', 0.92), resized => {
+        photoData = resized;
+        document.getElementById('photo-preview').src = resized;
+        document.getElementById('photo-preview').style.display = 'block';
+        document.getElementById('photo-placeholder').style.display = 'none';
+    });
+    document.getElementById('crop-overlay').classList.remove('open');
+    showToast('✅ תמונה נחתכה בהצלחה!');
 }
 
 // ===== CLASSROOM =====
