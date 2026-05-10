@@ -1086,6 +1086,7 @@
             <div class="names-picker-list" id="names-picker-list"></div>
             <div style="display:flex;gap:8px;border-top:1px solid #f3f4f6;padding-top:12px;margin-top:4px;">
                 <button onclick="document.getElementById('names-list-file-input').click()" style="flex:1;padding:9px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">📂 ייבא לכיתה זו</button>
+                <button onclick="shareClassLink()" style="flex:1;padding:9px;background:#f0fdf4;color:#16a34a;border:1.5px solid #bbf7d0;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">🔗 שתף כיתה</button>
                 <button onclick="closeNamePicker()" style="flex:1;padding:9px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">סגור</button>
             </div>
             <input type="file" id="names-list-file-input" accept=".txt,.csv,.xlsx,.xls,text/*" style="display:none" onchange="handleNamesListFile(event)">
@@ -3833,6 +3834,46 @@ function saveFaceNamingGroup() {
 // ===== NAMES LIST PICKER =====
 // Storage: { className: [names, ...] }  —  '' key = "no class assigned" shown in all
 let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
+
+// ===== SHARE CLASS LINK =====
+function shareClassLink() {
+    const sel = document.getElementById('names-picker-class-filter');
+    const rawClass = sel ? sel.value : '';
+    const className = rawClass === '__all__' ? '' : rawClass;
+    const names = importedNamesMap[className] || [];
+    if (!names.length) { showToast('בחר כיתה ספציפית עם שמות כדי לשתף'); return; }
+    const payload = JSON.stringify({ n: className, s: names });
+    const encoded = btoa(unescape(encodeURIComponent(payload)));
+    const url = `${location.origin}${location.pathname}?shareclass=${encoded}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => showToast('✅ הקישור הועתק! שלח אותו למורה אחר'));
+    } else {
+        prompt('העתק את הקישור ושלח:', url);
+    }
+}
+
+(function checkShareParam() {
+    const encoded = new URLSearchParams(location.search).get('shareclass');
+    if (!encoded) return;
+    try {
+        const data = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+        if (!data.s || !data.s.length) return;
+        history.replaceState({}, '', location.pathname); // clean URL
+        setTimeout(() => {
+            const label = data.n ? `כיתה "${data.n}"` : 'ללא כיתה';
+            const preview = data.s.slice(0, 5).join(', ') + (data.s.length > 5 ? '...' : '');
+            const ok = confirm(`קיבלת רשימת שמות (${label})\n${data.s.length} תלמידים: ${preview}\n\nלייבא לאפליקציה?`);
+            if (!ok) return;
+            if (!importedNamesMap[data.n]) importedNamesMap[data.n] = [];
+            const existing = new Set(importedNamesMap[data.n]);
+            data.s.forEach(n => existing.add(n));
+            importedNamesMap[data.n] = [...existing];
+            localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
+            showToast(`✅ יובאו ${data.s.length} שמות ל${label}`);
+        }, 800);
+    } catch {}
+})();
+
 // Migrate old flat format if exists
 (function migrateLegacyNames() {
     const old = JSON.parse(localStorage.getItem('importedNames') || '[]');
