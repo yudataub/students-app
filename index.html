@@ -902,7 +902,10 @@
     <!-- SETTINGS MODAL -->
     <div class="settings-overlay" id="settings-overlay" onclick="closeSettings(event)">
         <div class="settings-box" style="max-height:88vh;overflow-y:auto;">
-            <h3>⚙️ הגדרות</h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <h3 style="margin:0;">⚙️ הגדרות</h3>
+                <button onclick="closeSettings()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
+            </div>
 
             <!-- CLOUD SYNC SECTION -->
             <div class="cloud-section">
@@ -2206,6 +2209,7 @@ if (!localStorage.getItem('firebaseConfig')) {
     }));
 }
 renderHome();
+_updateCloudUI(); // show correct state immediately before Firebase SDK loads
 initFirebase();
 
 // ===== EMOJI MEMORY FEATURE =====
