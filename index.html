@@ -2414,6 +2414,8 @@ async function cloudSaveNow(silent) {
         await mainRef.set({ ...snapshot, students: studentsNoPhoto });
 
         // Photos subcollection: one doc per student (each doc ~10-50KB, no size limit issue)
+        const withPhoto = snapshot.students.filter(s => s.photo).length;
+        console.log('[cloudSave] students with photo:', withPhoto, '/', snapshot.students.length);
         const batch = _fbFirestore.batch();
         snapshot.students.forEach(s => {
             batch.set(photosCol.doc(s.id), { photo: s.photo || null });
