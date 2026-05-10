@@ -2336,13 +2336,19 @@ async function _onCloudLogin(user) {
                 showToast(`☁️ נטענו ${cloud.students.length} תלמידים מהענן`);
             }
         } else {
-            await cloudSaveNow();
-            showToast('☁️ הנתונים המקומיים הועלו לענן');
+            // Cloud is empty — only upload if we actually have local data
+            if (students.length > 0) {
+                await cloudSaveNow();
+                showToast('☁️ הנתונים המקומיים הועלו לענן');
+            }
+            // else: both empty — do nothing
         }
     } catch {
-        // No cloud data yet — upload local
-        await cloudSaveNow();
-        showToast('☁️ הנתונים הועלו לענן בהצלחה');
+        // No cloud file yet — only upload if we have local data
+        if (students.length > 0) {
+            await cloudSaveNow();
+            showToast('☁️ הנתונים הועלו לענן בהצלחה');
+        }
     }
 }
 
