@@ -1097,6 +1097,7 @@
                 <button onclick="closeNamePicker()" style="flex:1;padding:9px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">סגור</button>
             </div>
             <input type="file" id="names-list-file-input" accept=".txt,.csv,.xlsx,.xls,text/*" style="display:none" onchange="handleNamesListFile(event)">
+        <input type="file" id="import-class-file-input" accept=".json" style="display:none" onchange="importClassFull(event)">
         </div>
     </div>
 
@@ -1409,19 +1410,16 @@ function renderHome() {
         actions.appendChild(sep4);
         actions.appendChild(classroomBtn);
 
-        // Share button — only if class has names in importedNamesMap
-        const shareNames = importedNamesMap[isNone ? '' : key] || [];
-        if (shareNames.length) {
-            const sep5 = document.createElement('div');
-            sep5.className = 'class-sep';
-            const shareBtn = document.createElement('button');
-            shareBtn.className = 'class-action-btn';
-            shareBtn.style.cssText = 'color:#16a34a;';
-            shareBtn.innerHTML = '🔗 שתף';
-            shareBtn.onclick = () => shareClassLink(isNone ? '' : key);
-            actions.appendChild(sep5);
-            actions.appendChild(shareBtn);
-        }
+        // Share button — shown for any class with students
+        const sep5 = document.createElement('div');
+        sep5.className = 'class-sep';
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'class-action-btn';
+        shareBtn.style.cssText = 'color:#16a34a;';
+        shareBtn.innerHTML = '📤 שתף';
+        shareBtn.onclick = () => exportClassFull(isNone ? '' : key);
+        actions.appendChild(sep5);
+        actions.appendChild(shareBtn);
 
         card.appendChild(actions);
         list.appendChild(card);
@@ -1467,6 +1465,14 @@ function renderHome() {
     allClassroom.innerHTML = '🏫 כיתה';
     allClassroom.onclick = () => showClassroom(undefined);
 
+    const allSep5 = document.createElement('div');
+    allSep5.className = 'class-sep';
+    const importClassBtn = document.createElement('button');
+    importClassBtn.className = 'class-action-btn';
+    importClassBtn.style.cssText = 'color:#7c3aed;';
+    importClassBtn.innerHTML = '📥 ייבא כיתה';
+    importClassBtn.onclick = () => document.getElementById('import-class-file-input').click();
+
     allRow.appendChild(allGallery);
     allRow.appendChild(allSep);
     allRow.appendChild(allQuiz);
@@ -1476,6 +1482,8 @@ function renderHome() {
     allRow.appendChild(allMquiz);
     allRow.appendChild(allSep4);
     allRow.appendChild(allClassroom);
+    allRow.appendChild(allSep5);
+    allRow.appendChild(importClassBtn);
     list.appendChild(allRow);
 
     populateClassSelect('input-class');
@@ -3865,10 +3873,9 @@ function saveFaceNamingGroup() {
 
 // ===== NAMES LIST PICKER =====
 // Storage: { className: [names, ...] }  —  '' key = "no class assigned" shown in all
-// ===== SHARE CLASS LINK =====
+// ===== SHARE CLASS LINK (names-only, used from names picker modal) =====
 function shareClassLink(className) {
     if (className === undefined) {
-        // Called from names picker — read from select
         const sel = document.getElementById('names-picker-class-filter');
         const raw = sel ? sel.value : '';
         className = raw === '__all__' ? '' : raw;
@@ -3883,6 +3890,74 @@ function shareClassLink(className) {
     } else {
         prompt('העתק את הקישור ושלח:', url);
     }
+}
+
+// ===== EXPORT FULL CLASS (students + photos + names) =====
+function exportClassFull(className) {
+    const cls = className === undefined ? '' : className;
+    const classStudents = students.filter(s => s.className === cls);
+    const names = importedNamesMap[cls] || [];
+    if (!classStudents.length && !names.length) {
+        showToast('אין תלמידים בכיתה זו לשיתוף');
+        return;
+    }
+    const label = cls || 'ללא כיתה';
+    const payload = {
+        v: 2,
+        className: cls,
+        exportDate: new Date().toISOString(),
+        students: classStudents,
+        names: names
+    };
+    const json = JSON.stringify(payload);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `כיתה-${label}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`✅ קובץ כיתה "${label}" הורד — שלח אותו למורה אחר`);
+}
+
+// ===== IMPORT FULL CLASS FROM JSON FILE =====
+function importClassFull(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    event.target.value = '';
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!data.students || !Array.isArray(data.students)) throw new Error('קובץ לא תקין');
+            const cls = data.className !== undefined ? data.className : '';
+            const label = cls ? `כיתה "${cls}"` : 'ללא כיתה';
+            const preview = data.students.slice(0, 5).map(s => s.name).join(', ') + (data.students.length > 5 ? '...' : '');
+            const ok = confirm(`קיבלת ${label} עם ${data.students.length} תלמידים:\n${preview}\n\nלייבא לאפליקציה?`);
+            if (!ok) return;
+            // Add students — generate new IDs to avoid conflicts
+            let added = 0;
+            data.students.forEach(s => {
+                const newStudent = { ...s, id: Date.now() + Math.random(), className: cls };
+                students.push(newStudent);
+                added++;
+            });
+            // Merge names list
+            if (data.names && data.names.length) {
+                if (!importedNamesMap[cls]) importedNamesMap[cls] = [];
+                const existing = new Set(importedNamesMap[cls]);
+                data.names.forEach(n => existing.add(n));
+                importedNamesMap[cls] = [...existing];
+                localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
+            }
+            saveData();
+            renderHome();
+            showToast(`✅ יובאו ${added} תלמידים ל${label}`);
+        } catch(err) {
+            showToast('⚠️ שגיאה בקריאת הקובץ — ודא שזה קובץ כיתה תקין');
+        }
+    };
+    reader.readAsText(file);
 }
 
 (function checkShareParam() {
