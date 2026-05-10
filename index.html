@@ -2379,7 +2379,13 @@ async function _readCloudData(uid) {
 }
 
 function _applyCloudData(data) {
-    students = data.students || [];
+    // Preserve local photos when cloud photo is null (cloud sync strips photos if subcollection fails)
+    const localPhotos = {};
+    students.forEach(s => { if (s.photo) localPhotos[s.id] = s.photo; });
+    students = (data.students || []).map(s => ({
+        ...s,
+        photo: s.photo || localPhotos[s.id] || null
+    }));
     if (data.importedNamesMap) {
         // Decode 'NO_CLASS' back to '' for legacy entries
         const namesMap = {};
@@ -2535,13 +2541,16 @@ async function _checkAndPullCloud() {
         const snap = await _fbFirestore.collection('teachers').doc(_fbUser.uid).get({ source: 'server' });
         if (!snap.exists) return;
         const meta = snap.data();
+        const localPhotosCount = students.filter(s => s.photo).length;
         if (meta.ts && meta.ts > localLastSync && meta.students && meta.students.length > 0) {
             // Cloud is newer — fetch full data including photos
             const cloud = await _readCloudData(_fbUser.uid);
-            if (cloud) {
-                _applyCloudData(cloud);
-                showToast(`☁️ עודכן מהענן: ${cloud.students.length} תלמידים`);
-            }
+            if (!cloud) return;
+            const cloudPhotosCount = (cloud.students || []).filter(s => s.photo).length;
+            // Don't auto-apply if cloud has no photos but local does (prevents data loss)
+            if (cloudPhotosCount === 0 && localPhotosCount > 0) return;
+            _applyCloudData(cloud);
+            showToast(`☁️ עודכן מהענן: ${cloud.students.length} תלמידים`);
         }
     } catch {} // silently ignore
 }
