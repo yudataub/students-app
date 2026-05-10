@@ -947,7 +947,8 @@
                         </div>
                     </div>
                     <div class="cloud-sync-status" id="cloud-sync-status">בודק סנכרון...</div>
-                    <button class="cloud-btn sync" onclick="cloudSaveNow()">☁️ סנכרן עכשיו</button>
+                    <button class="cloud-btn sync" onclick="cloudSaveNow().then(()=>showToast('✅ הועלה לענן'))">☁️ העלה לענן</button>
+                    <button class="cloud-btn sync" onclick="cloudPullNow()">⬇️ הורד מהענן</button>
                     <button class="cloud-btn danger" onclick="signOutUser()">🚪 יציאה מהחשבון</button>
                 </div>
             </div>
@@ -2382,6 +2383,28 @@ async function cloudSaveNow() {
         _updateCloudUI();
     } catch (err) {
         showToast('⚠️ שגיאת ענן: ' + err.message);
+    }
+}
+
+async function cloudPullNow() {
+    if (!_fbUser || !_fbFirestore) { showToast('⚠️ לא מחובר לענן'); return; }
+    try {
+        showToast('⏳ מחפש נתונים בענן...');
+        const snap = await _fbFirestore.collection('teachers').doc(_fbUser.uid).get();
+        if (!snap.exists) {
+            alert('הענן ריק לחלוטין — לא נשמרו שם נתונים עדיין.\n\nכדי לסנכרן: לך למחשב שיש בו התלמידים ולחץ "העלה לענן".');
+            return;
+        }
+        const cloud = snap.data();
+        const count = (cloud.students || []).length;
+        const date = cloud.ts ? new Date(cloud.ts).toLocaleString('he') : '?';
+        const ok = confirm(`נמצאו בענן: ${count} תלמידים (נשמר: ${date})\n\nלטעון אותם?`);
+        if (ok) {
+            _applyCloudData(cloud);
+            showToast(`✅ נטענו ${count} תלמידים מהענן`);
+        }
+    } catch(err) {
+        alert('שגיאה בקריאה מהענן:\n' + err.message);
     }
 }
 
