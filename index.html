@@ -2251,11 +2251,11 @@ function saveSettings() {
     showToast('✅ הגדרות נשמרו');
 }
 function showStorageRules() {
-    alert(`rules_version = '2';\nservice firebase.storage {\n  match /b/{bucket}/o {\n    match /teachers/{userId}/{allPaths=**} {\n      allow read, write: if request.auth != null\n        && request.auth.uid == userId;\n    }\n  }\n}`);
+    alert(`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /teachers/{userId} {\n      allow read, write: if request.auth != null\n        && request.auth.uid == userId;\n    }\n  }\n}`);
 }
 
 // ===== CLOUD SYNC (Firebase) =====
-let _fbAuth = null, _fbStorage = null, _fbUser = null, _cloudSyncTimer = null;
+let _fbAuth = null, _fbFirestore = null, _fbUser = null, _cloudSyncTimer = null;
 
 function _loadScript(src) {
     return new Promise((res, rej) => {
@@ -2271,7 +2271,7 @@ async function _loadFirebaseSDK() {
     await _loadScript(`${BASE}/firebase-app-compat.js`);
     await Promise.all([
         _loadScript(`${BASE}/firebase-auth-compat.js`),
-        _loadScript(`${BASE}/firebase-storage-compat.js`),
+        _loadScript(`${BASE}/firebase-firestore-compat.js`),
     ]);
     window._fbSDKLoaded = true;
 }
@@ -2283,8 +2283,8 @@ async function initFirebase() {
         await _loadFirebaseSDK();
         const config = JSON.parse(configStr);
         if (!firebase.apps.length) firebase.initializeApp(config);
-        _fbAuth    = firebase.auth();
-        _fbStorage = firebase.storage();
+        _fbAuth      = firebase.auth();
+        _fbFirestore = firebase.firestore();
         _fbAuth.onAuthStateChanged(user => {
             _fbUser = user;
             _updateCloudUI();
@@ -2316,15 +2316,10 @@ async function signOutUser() {
 }
 
 async function _onCloudLogin(user) {
-    const ref = _fbStorage.ref(`teachers/${user.uid}/data.json`);
     try {
-        const url = await ref.getDownloadURL();
-        // cache-bust so we always get the latest version
-        const res = await fetch(url + (url.includes('?') ? '&' : '?') + '_cb=' + Date.now());
-        if (!res.ok) throw new Error('fetch ' + res.status);
-        const cloud = await res.json();
-        console.log('[cloud login] cloud students:', cloud.students && cloud.students.length, 'local:', students.length);
-        if (cloud.students && cloud.students.length > 0) {
+        const snap = await _fbFirestore.collection('teachers').doc(user.uid).get();
+        const cloud = snap.exists ? snap.data() : null;
+        if (cloud && cloud.students && cloud.students.length > 0) {
             if (students.length > 0) {
                 const cloudDate = new Date(cloud.ts).toLocaleDateString('he');
                 const loadCloud = confirm(
@@ -2339,23 +2334,15 @@ async function _onCloudLogin(user) {
                 showToast(`☁️ נטענו ${cloud.students.length} תלמידים מהענן`);
             }
         } else {
-            // Cloud is empty — only upload if we actually have local data
+            // Cloud empty — only upload if we have local data
             if (students.length > 0) {
                 await cloudSaveNow();
                 showToast('☁️ הנתונים המקומיים הועלו לענן');
-            } else {
-                showToast('☁️ מחובר לענן (אין נתונים עדיין)');
             }
         }
     } catch(err) {
         console.error('[cloud login] error:', err);
-        // No cloud file yet — only upload if we have local data
-        if (students.length > 0) {
-            await cloudSaveNow();
-            showToast('☁️ הנתונים הועלו לענן בהצלחה');
-        } else {
-            showToast('☁️ מחובר — לא נמצאו נתונים בענן (' + err.message + ')');
-        }
+        showToast('⚠️ שגיאת ענן: ' + err.message);
     }
 }
 
@@ -2386,13 +2373,12 @@ function _applyCloudData(data) {
 }
 
 async function cloudSaveNow() {
-    if (!_fbUser || !_fbStorage) { showToast('⚠️ לא מחובר לענן'); return; }
+    if (!_fbUser || !_fbFirestore) { showToast('⚠️ לא מחובר לענן'); return; }
     clearTimeout(_cloudSyncTimer);
     try {
-        const blob = new Blob([JSON.stringify(_getCloudSnapshot())], { type: 'application/json' });
-        await _fbStorage.ref(`teachers/${_fbUser.uid}/data.json`).put(blob);
-        const now = Date.now();
-        localStorage.setItem('cloudLastSync', now.toString());
+        const snapshot = _getCloudSnapshot();
+        await _fbFirestore.collection('teachers').doc(_fbUser.uid).set(snapshot);
+        localStorage.setItem('cloudLastSync', snapshot.ts.toString());
         _updateCloudUI();
     } catch (err) {
         showToast('⚠️ שגיאת ענן: ' + err.message);
@@ -2457,7 +2443,7 @@ function saveFirebaseConfig() {
 function removeFirebaseConfig() {
     if (!confirm('להסיר את הגדרות הענן?')) return;
     if (_fbAuth) _fbAuth.signOut().catch(() => {});
-    _fbUser = null; _fbAuth = null; _fbStorage = null;
+    _fbUser = null; _fbAuth = null; _fbFirestore = null;
     localStorage.removeItem('firebaseConfig');
     localStorage.removeItem('cloudLastSync');
     _updateCloudUI();
@@ -2475,17 +2461,17 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function _checkAndPullCloud() {
-    if (!_fbUser || !_fbStorage) return;
+    if (!_fbUser || !_fbFirestore) return;
     const localLastSync = parseInt(localStorage.getItem('cloudLastSync') || '0');
     try {
-        const ref = _fbStorage.ref(`teachers/${_fbUser.uid}/data.json`);
-        const url = await ref.getDownloadURL();
-        const cloud = await fetch(url + '&t=' + Date.now()).then(r => r.json()); // cache-bust
+        const snap = await _fbFirestore.collection('teachers').doc(_fbUser.uid).get();
+        if (!snap.exists) return;
+        const cloud = snap.data();
         if (cloud.ts && cloud.ts > localLastSync && cloud.students && cloud.students.length > 0) {
-            _applyCloudData(cloud); // also saves cloudLastSync and calls renderHome()
+            _applyCloudData(cloud);
             showToast(`☁️ עודכן מהענן: ${cloud.students.length} תלמידים`);
         }
-    } catch {} // no cloud data or network error — silently ignore
+    } catch {} // silently ignore
 }
 
 // AI emoji generation
