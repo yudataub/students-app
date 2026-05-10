@@ -2198,6 +2198,8 @@ function showToast(msg) {
 }
 
 // ===== INIT =====
+let _fbAuth = null, _fbFirestore = null, _fbUser = null, _cloudSyncTimer = null;
+
 // Pre-load Firebase config (safe to embed — security enforced by Storage Rules)
 if (!localStorage.getItem('firebaseConfig')) {
     localStorage.setItem('firebaseConfig', JSON.stringify({
@@ -2287,7 +2289,7 @@ function showStorageRules() {
 }
 
 // ===== CLOUD SYNC (Firebase) =====
-let _fbAuth = null, _fbFirestore = null, _fbUser = null, _cloudSyncTimer = null;
+// Firebase vars declared at top of INIT section above
 
 function _loadScript(src) {
     return new Promise((res, rej) => {
