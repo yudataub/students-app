@@ -549,6 +549,27 @@
         .pool-card img { width:100%; height:52px; object-fit:cover; object-position:top; display:block; }
         .pool-card .pool-name { font-size:0.5rem; font-weight:700; text-align:center; padding:2px; color:#374151; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .class-action-btn.classroom-btn-sm:hover { color:#1d4ed8; }
+        /* CLASSROOM QUIZ MODE BAR */
+        .cq-mode-bar { display:flex; gap:5px; margin-bottom:10px; }
+        .cq-mode-btn { flex:1; padding:8px 2px; border:1.5px solid #e5e7eb; border-radius:10px; font-family:inherit; font-size:0.7rem; font-weight:700; cursor:pointer; background:white; color:#374151; transition:all 0.15s; line-height:1.3; text-align:center; }
+        .cq-mode-btn.active { background:#1d4ed8; color:white; border-color:#1d4ed8; }
+        /* DRAG-NAME POOL */
+        .cq-pool-wrap { background:white; border-radius:14px; padding:10px 12px; box-shadow:0 2px 8px rgba(0,0,0,0.07); margin-bottom:10px; }
+        .cq-pool-label { font-size:0.7rem; font-weight:700; color:#9ca3af; letter-spacing:0.04em; margin-bottom:7px; }
+        .cq-name-chips { display:flex; flex-wrap:wrap; gap:5px; }
+        .cq-name-chip { padding:5px 11px; border:1.5px solid #e5e7eb; border-radius:20px; font-size:0.8rem; font-weight:600; cursor:pointer; background:#f9fafb; transition:all 0.15s; }
+        .cq-name-chip.selected { background:#1d4ed8; color:white; border-color:#1d4ed8; }
+        .cq-name-chip.revealed { background:#fef3c7; border-color:#f59e0b; color:#92400e; cursor:default; }
+        /* DRAG-PHOTO POOL */
+        .cq-photo-chips { display:flex; flex-wrap:wrap; gap:6px; }
+        .cq-pool-photo { border-radius:9px; overflow:hidden; border:2px solid #e5e7eb; cursor:pointer; transition:all 0.15s; flex-shrink:0; position:relative; }
+        .cq-pool-photo img { width:46px; height:46px; object-fit:cover; object-position:top; display:block; }
+        .cq-pool-photo.selected { border-color:#1d4ed8; box-shadow:0 0 0 2px #1d4ed8; }
+        .cq-pool-photo.revealed { opacity:0.4; cursor:default; }
+        /* DRAG SEAT STATES */
+        .classroom-seat.drag-target:hover { border-color:#1d4ed8 !important; border-style:solid !important; background:#eff6ff !important; cursor:pointer; }
+        .classroom-seat.quiz-revealed { border-color:#f59e0b !important; border-style:solid !important; background:#fffbeb !important; }
+        .seat-photo-hidden { background:#e5e7eb; display:flex; align-items:center; justify-content:center; color:#9ca3af; }
     </style>
 </head>
 <body>
@@ -928,13 +949,11 @@
             <img id="cq-photo" style="width:120px;height:120px;object-fit:cover;object-position:top;border-radius:14px;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;">
             <div id="cq-emoji-hint" style="display:none;font-size:2.8rem;margin-bottom:4px;"></div>
             <div id="cq-letter-hint" style="display:none;font-size:1.7rem;font-weight:800;color:#0e7490;letter-spacing:0.15em;margin-bottom:10px;"></div>
+            <div id="cq-attempt-bar" style="display:none;font-size:0.75rem;color:#9ca3af;margin-bottom:8px;"></div>
             <input type="text" id="cq-input" placeholder="כתוב את השם..." autocomplete="off" direction="rtl"
                 style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:1rem;direction:rtl;font-family:inherit;box-sizing:border-box;margin-bottom:10px;"
                 onkeydown="if(event.key==='Enter')checkCQAnswer()">
-            <div style="display:flex;gap:8px;margin-bottom:8px;">
-                <button onclick="checkCQAnswer()" style="flex:2;padding:11px;background:#06b6d4;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.95rem;font-weight:700;cursor:pointer;">בדוק ✓</button>
-                <button onclick="showCQHint()" style="flex:1;padding:11px;background:#fef3c7;color:#b45309;border:none;border-radius:10px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;">💡 רמז</button>
-            </div>
+            <button onclick="checkCQAnswer()" style="width:100%;padding:11px;background:#06b6d4;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.95rem;font-weight:700;cursor:pointer;margin-bottom:8px;">בדוק ✓</button>
             <button onclick="closeCQOverlay()" style="width:100%;padding:9px;background:#f3f4f6;color:#6b7280;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">דלג</button>
         </div>
     </div>
@@ -2459,9 +2478,11 @@ function confirmCrop() {
 let classroomClass, classroomCols, classroomRows;
 let classroomSeats = [];          // array of studentId | null, length = cols*rows*2
 let classroomSelectedPoolId = null;
-let classroomMode = 'build';      // 'build' | 'quiz'
-let classroomQuizResults = {};    // studentId -> 'correct' | 'wrong'
+let classroomMode = 'build';      // 'build' | 'type' | 'drag-name' | 'drag-photo'
+let classroomQuizResults = {};    // studentId -> 'correct' | 'wrong' | 'revealed'
 let cqActiveSeatIdx = null;
+let cqAttempts = {};              // studentId -> number of wrong attempts (type mode)
+let cqSelected = null;            // selected pool studentId (drag modes)
 
 function getSeating(cls) {
     return JSON.parse(localStorage.getItem('seating_' + (cls === undefined ? '__all__' : cls === null ? '__none__' : cls)) || 'null');
@@ -2483,8 +2504,10 @@ function showClassroom(cls) {
         classroomCols = existing.cols;
         classroomRows = existing.rows;
         classroomSeats = [...existing.seats];
-        classroomMode = 'quiz';
+        classroomMode = 'type';
         classroomQuizResults = {};
+        cqAttempts = {};
+        cqSelected = null;
         classroomSelectedPoolId = null;
     } else {
         openClassroomSetup(cls);
@@ -2522,6 +2545,8 @@ function confirmClassroomSetup() {
     classroomMode = 'build';
     classroomSelectedPoolId = null;
     classroomQuizResults = {};
+    cqAttempts = {};
+    cqSelected = null;
     renderClassroomView();
     const title = classroomClass === undefined ? '🏫 כל הכיתות' : classroomClass === null ? '🏫 ללא כיתה' : `🏫 ${classroomClass}`;
     showView('classroom', title);
@@ -2538,7 +2563,8 @@ function calcSeatSize() {
 function renderClassroomView() {
     const cont = document.getElementById('classroom-content');
     cont.innerHTML = '';
-    classroomMode === 'build' ? renderClassroomBuilder(cont) : renderClassroomQuiz(cont);
+    if (classroomMode === 'build') renderClassroomBuilder(cont);
+    else renderClassroomQuiz(cont);
 }
 
 function renderClassroomBuilder(cont) {
@@ -2641,8 +2667,10 @@ function makeBuilderSeat(idx, w, photoH) {
 function saveClassroomLayout() {
     saveSeatingData(classroomClass, { cols: classroomCols, rows: classroomRows, seats: classroomSeats });
     showToast('✅ סידור הכיתה נשמר!');
-    classroomMode = 'quiz';
+    classroomMode = 'type';
     classroomQuizResults = {};
+    cqAttempts = {};
+    cqSelected = null;
     renderClassroomView();
 }
 
@@ -2650,9 +2678,32 @@ function renderClassroomQuiz(cont) {
     const { w, h } = calcSeatSize();
     const photoH = h - 18;
 
+    // Mode selector bar
+    const modeBar = document.createElement('div');
+    modeBar.className = 'cq-mode-bar';
+    const modes = [
+        { key: 'type',       label: '✍️ כתוב שם' },
+        { key: 'drag-name',  label: '🏷️ שים שם' },
+        { key: 'drag-photo', label: '📷 שים תמונה' },
+    ];
+    modes.forEach(({ key, label }) => {
+        const btn = document.createElement('button');
+        btn.className = 'cq-mode-btn' + (classroomMode === key ? ' active' : '');
+        btn.textContent = label;
+        btn.onclick = () => {
+            classroomMode = key;
+            classroomQuizResults = {};
+            cqAttempts = {};
+            cqSelected = null;
+            renderClassroomView();
+        };
+        modeBar.appendChild(btn);
+    });
+    cont.appendChild(modeBar);
+
+    // Grid
     const grid = document.createElement('div');
     grid.className = 'classroom-grid';
-
     for (let r = 0; r < classroomRows; r++) {
         const row = document.createElement('div');
         row.className = 'classroom-row';
@@ -2674,14 +2725,75 @@ function renderClassroomQuiz(cont) {
     teacherZone.textContent = '👨‍🏫 המורה';
     cont.appendChild(teacherZone);
 
+    // Pool for drag-name: name chips
+    if (classroomMode === 'drag-name') {
+        const placedStudents = classroomSeats.filter(Boolean).map(id => students.find(s => s.id === id)).filter(Boolean);
+        const remaining = placedStudents.filter(s => classroomQuizResults[s.id] !== 'correct');
+        if (remaining.length > 0) {
+            const poolWrap = document.createElement('div');
+            poolWrap.className = 'cq-pool-wrap';
+            const lbl = document.createElement('div');
+            lbl.className = 'cq-pool-label';
+            lbl.textContent = 'בחר שם ואז לחץ על התמונה הנכונה:';
+            poolWrap.appendChild(lbl);
+            const chips = document.createElement('div');
+            chips.className = 'cq-name-chips';
+            // Shuffle names so they don't appear in seat order
+            const shuffled = [...remaining].sort(() => Math.random() - 0.5);
+            shuffled.forEach(s => {
+                const chip = document.createElement('div');
+                chip.className = 'cq-name-chip' + (cqSelected === s.id ? ' selected' : '') + (classroomQuizResults[s.id] === 'revealed' ? ' revealed' : '');
+                chip.textContent = s.name;
+                if (classroomQuizResults[s.id] !== 'revealed') {
+                    chip.onclick = () => { cqSelected = cqSelected === s.id ? null : s.id; renderClassroomView(); };
+                }
+                chips.appendChild(chip);
+            });
+            poolWrap.appendChild(chips);
+            cont.appendChild(poolWrap);
+        }
+    }
+
+    // Pool for drag-photo: photo cards
+    if (classroomMode === 'drag-photo') {
+        const placedStudents = classroomSeats.filter(Boolean).map(id => students.find(s => s.id === id)).filter(Boolean);
+        const remaining = placedStudents.filter(s => classroomQuizResults[s.id] !== 'correct');
+        if (remaining.length > 0) {
+            const poolWrap = document.createElement('div');
+            poolWrap.className = 'cq-pool-wrap';
+            const lbl = document.createElement('div');
+            lbl.className = 'cq-pool-label';
+            lbl.textContent = 'בחר תמונה ואז לחץ על השם הנכון:';
+            poolWrap.appendChild(lbl);
+            const chips = document.createElement('div');
+            chips.className = 'cq-photo-chips';
+            const shuffled = [...remaining].sort(() => Math.random() - 0.5);
+            shuffled.forEach(s => {
+                const card = document.createElement('div');
+                card.className = 'cq-pool-photo' + (cqSelected === s.id ? ' selected' : '') + (classroomQuizResults[s.id] === 'revealed' ? ' revealed' : '');
+                const img = document.createElement('img');
+                img.src = s.photo;
+                img.alt = s.name;
+                card.appendChild(img);
+                if (classroomQuizResults[s.id] !== 'revealed') {
+                    card.onclick = () => { cqSelected = cqSelected === s.id ? null : s.id; renderClassroomView(); };
+                }
+                chips.appendChild(card);
+            });
+            poolWrap.appendChild(chips);
+            cont.appendChild(poolWrap);
+        }
+    }
+
     // Stats
     const placedIds = classroomSeats.filter(Boolean);
-    const answered = Object.keys(classroomQuizResults).length;
-    const correct  = Object.values(classroomQuizResults).filter(r => r === 'correct').length;
-    if (answered > 0) {
+    const correct = Object.values(classroomQuizResults).filter(r => r === 'correct').length;
+    const revealed = Object.values(classroomQuizResults).filter(r => r === 'revealed').length;
+    const answered = correct + revealed + Object.values(classroomQuizResults).filter(r => r === 'wrong').length;
+    if (Object.keys(classroomQuizResults).length > 0) {
         const stats = document.createElement('div');
-        stats.style.cssText = 'text-align:center;padding:8px;font-size:0.88rem;color:#6b7280;background:white;border-radius:10px;margin-bottom:8px;';
-        stats.textContent = `${correct}/${answered} נכון · ${placedIds.length - answered} נותרו`;
+        stats.style.cssText = 'text-align:center;padding:8px;font-size:0.85rem;color:#6b7280;background:white;border-radius:10px;margin-bottom:8px;';
+        stats.textContent = `✅ ${correct} נכון · ⚠️ ${revealed} הוגלה · ${placedIds.length - correct - revealed} נותרו`;
         cont.appendChild(stats);
     }
 
@@ -2689,25 +2801,30 @@ function renderClassroomQuiz(cont) {
     const editBtn = document.createElement('button');
     editBtn.style.cssText = 'width:100%;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;';
     editBtn.textContent = '✏️ ערוך סידור';
-    editBtn.onclick = () => { classroomMode = 'build'; classroomSelectedPoolId = null; renderClassroomView(); };
+    editBtn.onclick = () => { classroomMode = 'build'; classroomSelectedPoolId = null; cqSelected = null; renderClassroomView(); };
     cont.appendChild(editBtn);
 }
 
 function makeQuizSeat(idx, w, photoH) {
+    if (classroomMode === 'drag-name')  return makeDragNameSeat(idx, w, photoH);
+    if (classroomMode === 'drag-photo') return makeDragPhotoSeat(idx, w, photoH);
+    return makeTypeSeat(idx, w, photoH);
+}
+
+// TYPE MODE: photo visible, name hidden → teacher types name
+function makeTypeSeat(idx, w, photoH) {
     const studentId = classroomSeats[idx];
     const seat = document.createElement('div');
     seat.style.width = w + 'px';
     seat.style.height = (photoH + 18) + 'px';
 
-    if (!studentId) {
-        seat.className = 'classroom-seat';
-        return seat;
-    }
+    if (!studentId) { seat.className = 'classroom-seat'; return seat; }
     const s = students.find(x => x.id === studentId);
     if (!s) { seat.className = 'classroom-seat'; return seat; }
 
     const result = classroomQuizResults[studentId];
-    seat.className = 'classroom-seat seat-filled' + (result === 'correct' ? ' quiz-correct' : result === 'wrong' ? ' quiz-wrong' : '');
+    seat.className = 'classroom-seat seat-filled' +
+        (result === 'correct' ? ' quiz-correct' : result === 'revealed' ? ' quiz-revealed' : result === 'wrong' ? ' quiz-wrong' : '');
 
     const img = document.createElement('img');
     img.src = s.photo;
@@ -2716,20 +2833,158 @@ function makeQuizSeat(idx, w, photoH) {
 
     const nm = document.createElement('div');
     nm.className = 'seat-name';
-    nm.textContent = result ? s.name : '?';
-    nm.style.color = result ? '' : '#d1d5db';
+    if (result === 'correct') {
+        nm.textContent = s.name;
+    } else if (result === 'revealed') {
+        nm.textContent = s.name;
+        nm.style.color = '#b45309';
+    } else {
+        // Show hint if there are attempts
+        const attempts = cqAttempts[studentId] || 0;
+        const firstName = s.name.trim().split(/\s+/)[0];
+        if (attempts >= 2) { nm.textContent = firstName + '...'; nm.style.color = '#f59e0b'; }
+        else if (attempts >= 1) { nm.textContent = firstName.slice(0,2) + '...'; nm.style.color = '#f59e0b'; }
+        else { nm.textContent = '?'; nm.style.color = '#d1d5db'; }
+    }
     seat.appendChild(nm);
 
     if (result) {
         const icon = document.createElement('div');
         icon.className = 'seat-result-icon';
-        icon.textContent = result === 'correct' ? '✓' : '✗';
-        icon.style.color = result === 'correct' ? '#10b981' : '#ef4444';
+        icon.textContent = result === 'correct' ? '✓' : result === 'revealed' ? '!' : '✗';
+        icon.style.color = result === 'correct' ? '#10b981' : result === 'revealed' ? '#f59e0b' : '#ef4444';
         seat.appendChild(icon);
     } else {
         seat.onclick = () => openCQInput(idx);
     }
     return seat;
+}
+
+// DRAG-NAME MODE: photo visible, name hidden → pick name from pool
+function makeDragNameSeat(idx, w, photoH) {
+    const studentId = classroomSeats[idx];
+    const seat = document.createElement('div');
+    seat.style.width = w + 'px';
+    seat.style.height = (photoH + 18) + 'px';
+
+    if (!studentId) { seat.className = 'classroom-seat'; return seat; }
+    const s = students.find(x => x.id === studentId);
+    if (!s) { seat.className = 'classroom-seat'; return seat; }
+
+    const result = classroomQuizResults[studentId];
+    const canClick = !result && cqSelected;
+
+    seat.className = 'classroom-seat seat-filled' +
+        (result === 'correct' ? ' quiz-correct' : result === 'revealed' ? ' quiz-revealed' : result === 'wrong' ? ' quiz-wrong' : '') +
+        (canClick ? ' drag-target' : '');
+
+    const img = document.createElement('img');
+    img.src = s.photo;
+    img.style.height = photoH + 'px';
+    seat.appendChild(img);
+
+    const nm = document.createElement('div');
+    nm.className = 'seat-name';
+    if (result) {
+        nm.textContent = s.name;
+        nm.style.color = result === 'revealed' ? '#b45309' : '';
+    } else {
+        nm.textContent = '?';
+        nm.style.color = '#d1d5db';
+    }
+    seat.appendChild(nm);
+
+    if (result) {
+        const icon = document.createElement('div');
+        icon.className = 'seat-result-icon';
+        icon.textContent = result === 'correct' ? '✓' : result === 'revealed' ? '!' : '✗';
+        icon.style.color = result === 'correct' ? '#10b981' : result === 'revealed' ? '#f59e0b' : '#ef4444';
+        seat.appendChild(icon);
+    } else if (cqSelected) {
+        seat.onclick = () => checkDragAnswer(studentId, cqSelected, 'drag-name');
+    } else if (!result) {
+        seat.onclick = () => showToast('קודם בחר שם מהרשימה למטה');
+    }
+    return seat;
+}
+
+// DRAG-PHOTO MODE: name visible, photo hidden → pick photo from pool
+function makeDragPhotoSeat(idx, w, photoH) {
+    const studentId = classroomSeats[idx];
+    const seat = document.createElement('div');
+    seat.style.width = w + 'px';
+    seat.style.height = (photoH + 18) + 'px';
+
+    if (!studentId) { seat.className = 'classroom-seat'; return seat; }
+    const s = students.find(x => x.id === studentId);
+    if (!s) { seat.className = 'classroom-seat'; return seat; }
+
+    const result = classroomQuizResults[studentId];
+    const canClick = !result && cqSelected;
+
+    seat.className = 'classroom-seat seat-filled' +
+        (result === 'correct' ? ' quiz-correct' : result === 'revealed' ? ' quiz-revealed' : result === 'wrong' ? ' quiz-wrong' : '') +
+        (canClick ? ' drag-target' : '');
+
+    // Photo area: show photo if correct/revealed, else gray placeholder
+    const photoWrap = document.createElement('div');
+    photoWrap.className = 'seat-photo-hidden';
+    photoWrap.style.height = photoH + 'px';
+    photoWrap.style.width = '100%';
+    if (result) {
+        const img = document.createElement('img');
+        img.src = s.photo;
+        img.style.cssText = `width:100%;height:${photoH}px;object-fit:cover;object-position:top;display:block;`;
+        seat.appendChild(img);
+    } else {
+        photoWrap.style.fontSize = Math.max(14, w * 0.35) + 'px';
+        photoWrap.textContent = '?';
+        seat.appendChild(photoWrap);
+    }
+
+    const nm = document.createElement('div');
+    nm.className = 'seat-name';
+    nm.textContent = s.name;
+    nm.style.color = result === 'revealed' ? '#b45309' : '';
+    seat.appendChild(nm);
+
+    if (result) {
+        const icon = document.createElement('div');
+        icon.className = 'seat-result-icon';
+        icon.textContent = result === 'correct' ? '✓' : result === 'revealed' ? '!' : '✗';
+        icon.style.color = result === 'correct' ? '#10b981' : result === 'revealed' ? '#f59e0b' : '#ef4444';
+        seat.appendChild(icon);
+    } else if (cqSelected) {
+        seat.onclick = () => checkDragAnswer(studentId, cqSelected, 'drag-photo');
+    } else if (!result) {
+        seat.onclick = () => showToast('קודם בחר תמונה מהרשימה למטה');
+    }
+    return seat;
+}
+
+function checkDragAnswer(seatStudentId, selectedId, mode) {
+    const seatStudent = students.find(s => s.id === seatStudentId);
+    const isCorrect = seatStudentId === selectedId;
+    if (isCorrect) {
+        classroomQuizResults[seatStudentId] = 'correct';
+        seatStudent.correct = (seatStudent.correct || 0) + 1;
+        playCorrectSound();
+        saveData();
+        cqSelected = null;
+        renderClassroomView();
+        showToast('✅ נכון!');
+    } else {
+        // Wrong: flash wrong, allow retry — don't lock the seat, just flash and reset selection
+        classroomQuizResults[seatStudentId] = 'wrong';
+        saveData();
+        cqSelected = null;
+        renderClassroomView();
+        showToast('❌ לא נכון, נסה שוב');
+        setTimeout(() => {
+            delete classroomQuizResults[seatStudentId];
+            renderClassroomView();
+        }, 900);
+    }
 }
 
 function openCQInput(idx) {
@@ -2738,8 +2993,8 @@ function openCQInput(idx) {
     if (!s) return;
     document.getElementById('cq-photo').src = s.photo;
     document.getElementById('cq-input').value = '';
-    document.getElementById('cq-emoji-hint').style.display = 'none';
-    document.getElementById('cq-letter-hint').style.display = 'none';
+    const attempts = cqAttempts[s.id] || 0;
+    updateCQHintDisplay(s, attempts);
     document.getElementById('cq-overlay').classList.add('open');
     setTimeout(() => document.getElementById('cq-input').focus(), 150);
 }
@@ -2747,19 +3002,38 @@ function closeCQOverlay(e) {
     if (e && e.target !== document.getElementById('cq-overlay')) return;
     document.getElementById('cq-overlay').classList.remove('open');
 }
+function updateCQHintDisplay(s, attempts) {
+    const eh = document.getElementById('cq-emoji-hint');
+    const lh = document.getElementById('cq-letter-hint');
+    const ab = document.getElementById('cq-attempt-bar');
+    const firstName = s.name.trim().split(/\s+/)[0];
+    if (attempts === 0) {
+        eh.style.display = 'none';
+        lh.style.display = 'none';
+        ab.style.display = 'none';
+    } else if (attempts === 1) {
+        // Hint 1: first 2 letters
+        lh.textContent = firstName.slice(0, 2) + '...';
+        lh.style.display = 'block';
+        if (s.emoji) { eh.textContent = s.emoji; eh.style.display = 'block'; }
+        ab.textContent = 'ניסיון 1 מ-3 · ❌ לא נכון, הנה רמז';
+        ab.style.display = 'block';
+    } else {
+        // Hint 2: full first name
+        lh.textContent = firstName + (s.name.trim().split(/\s+/).length > 1 ? ' ...' : '');
+        lh.style.display = 'block';
+        if (s.emoji) { eh.textContent = s.emoji; eh.style.display = 'block'; }
+        ab.textContent = 'ניסיון 2 מ-3 · ❌ לא נכון, הנה רמז נוסף';
+        ab.style.display = 'block';
+    }
+}
 function showCQHint() {
     const s = students.find(x => x.id === classroomSeats[cqActiveSeatIdx]);
     if (!s) return;
-    const firstName = s.name.trim().split(/\s+/)[0];
-    const hint = firstName.length > 2 ? firstName.slice(0, 2) + '....' : firstName;
-    const lh = document.getElementById('cq-letter-hint');
-    lh.textContent = hint;
-    lh.style.display = 'block';
-    if (s.emoji) {
-        const eh = document.getElementById('cq-emoji-hint');
-        eh.textContent = s.emoji;
-        eh.style.display = 'block';
-    }
+    const attempts = cqAttempts[s.id] || 0;
+    if (attempts === 0) { cqAttempts[s.id] = 1; }
+    updateCQHintDisplay(s, cqAttempts[s.id] || 1);
+    renderClassroomView();
 }
 function checkCQAnswer() {
     const typed = document.getElementById('cq-input').value.trim();
@@ -2770,13 +3044,34 @@ function checkCQAnswer() {
     const isCorrect = typed === s.name.trim() ||
                       typed === parts[0] ||
                       (parts.length > 1 && typed === parts[parts.length - 1]);
-    classroomQuizResults[s.id] = isCorrect ? 'correct' : 'wrong';
-    if (isCorrect) { s.correct = (s.correct || 0) + 1; playCorrectSound(); }
-    else           { s.wrong   = (s.wrong   || 0) + 1; }
-    saveData();
-    document.getElementById('cq-overlay').classList.remove('open');
-    showToast(isCorrect ? '✅ נכון!' : `❌ זה ${s.name}`);
-    renderClassroomView();
+    if (isCorrect) {
+        classroomQuizResults[s.id] = 'correct';
+        s.correct = (s.correct || 0) + 1;
+        saveData();
+        playCorrectSound();
+        document.getElementById('cq-overlay').classList.remove('open');
+        showToast('✅ נכון!');
+        renderClassroomView();
+    } else {
+        const prev = cqAttempts[s.id] || 0;
+        cqAttempts[s.id] = prev + 1;
+        if (cqAttempts[s.id] >= 3) {
+            // 3rd wrong → reveal answer
+            classroomQuizResults[s.id] = 'revealed';
+            s.wrong = (s.wrong || 0) + 1;
+            saveData();
+            document.getElementById('cq-overlay').classList.remove('open');
+            showToast(`💡 התשובה: ${s.name}`);
+            renderClassroomView();
+        } else {
+            // Show next hint, keep overlay open
+            document.getElementById('cq-input').value = '';
+            updateCQHintDisplay(s, cqAttempts[s.id]);
+            renderClassroomView();
+            const msg = cqAttempts[s.id] === 1 ? '❌ לא נכון — הנה רמז' : '❌ לא נכון — הנה רמז נוסף';
+            showToast(msg);
+        }
+    }
 }
 
 // ===== EXPORT OPTIONS =====
