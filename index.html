@@ -3365,20 +3365,36 @@ function renderFaceNamingGrid() {
         img.src = face.photo;
         img.alt = face.name || '?';
 
+        const inputId = `face-card-input-${idx}`;
+
+        const inputRow = document.createElement('div');
+        inputRow.style.cssText = 'display:flex;gap:3px;width:82px;';
+
         const input = document.createElement('input');
         input.type = 'text';
+        input.id = inputId;
         input.placeholder = 'שם...';
         input.value = face.name;
-        if (face.name) input.className = 'named';
+        input.style.cssText = 'flex:1;min-width:0;padding:5px 4px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;font-size:0.78rem;direction:rtl;text-align:center;box-sizing:border-box;';
+        if (face.name) input.classList.add('named');
         input.oninput = () => {
             detectedFaceCards[idx].name = input.value;
-            input.className = input.value.trim() ? 'named' : '';
+            input.classList.toggle('named', !!input.value.trim());
             updateFaceNamingCount();
         };
 
+        const pickBtn = document.createElement('button');
+        pickBtn.textContent = '📋';
+        pickBtn.title = 'בחר מרשימה';
+        pickBtn.style.cssText = 'padding:0 4px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:6px;font-size:0.82rem;cursor:pointer;flex-shrink:0;';
+        pickBtn.onclick = () => openNamePicker(inputId);
+
+        inputRow.appendChild(input);
+        inputRow.appendChild(pickBtn);
+
         card.appendChild(delBtn);
         card.appendChild(img);
-        card.appendChild(input);
+        card.appendChild(inputRow);
         grid.appendChild(card);
     });
 
