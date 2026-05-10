@@ -1399,6 +1399,21 @@ function renderHome() {
         actions.appendChild(mquizBtn);
         actions.appendChild(sep4);
         actions.appendChild(classroomBtn);
+
+        // Share button — only if class has names in importedNamesMap
+        const shareNames = importedNamesMap[isNone ? '' : key] || [];
+        if (shareNames.length) {
+            const sep5 = document.createElement('div');
+            sep5.className = 'class-sep';
+            const shareBtn = document.createElement('button');
+            shareBtn.className = 'class-action-btn';
+            shareBtn.style.cssText = 'color:#16a34a;';
+            shareBtn.innerHTML = '🔗 שתף';
+            shareBtn.onclick = () => shareClassLink(isNone ? '' : key);
+            actions.appendChild(sep5);
+            actions.appendChild(shareBtn);
+        }
+
         card.appendChild(actions);
         list.appendChild(card);
     });
@@ -3836,12 +3851,15 @@ function saveFaceNamingGroup() {
 let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
 
 // ===== SHARE CLASS LINK =====
-function shareClassLink() {
-    const sel = document.getElementById('names-picker-class-filter');
-    const rawClass = sel ? sel.value : '';
-    const className = rawClass === '__all__' ? '' : rawClass;
+function shareClassLink(className) {
+    if (className === undefined) {
+        // Called from names picker — read from select
+        const sel = document.getElementById('names-picker-class-filter');
+        const raw = sel ? sel.value : '';
+        className = raw === '__all__' ? '' : raw;
+    }
     const names = importedNamesMap[className] || [];
-    if (!names.length) { showToast('בחר כיתה ספציפית עם שמות כדי לשתף'); return; }
+    if (!names.length) { showToast('אין שמות לשיתוף בכיתה זו'); return; }
     const payload = JSON.stringify({ n: className, s: names });
     const encoded = btoa(unescape(encodeURIComponent(payload)));
     const url = `${location.origin}${location.pathname}?shareclass=${encoded}`;
