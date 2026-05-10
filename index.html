@@ -947,7 +947,7 @@
                         </div>
                     </div>
                     <div class="cloud-sync-status" id="cloud-sync-status">בודק סנכרון...</div>
-                    <button class="cloud-btn sync" onclick="cloudSaveNow().then(()=>showToast('✅ הועלה לענן'))">☁️ העלה לענן</button>
+                    <button class="cloud-btn sync" onclick="cloudSaveNow()">☁️ העלה לענן</button>
                     <button class="cloud-btn sync" onclick="cloudPullNow()">⬇️ הורד מהענן</button>
                     <button class="cloud-btn danger" onclick="signOutUser()">🚪 יציאה מהחשבון</button>
                 </div>
@@ -2385,17 +2385,20 @@ function _applyCloudData(data) {
     renderHome();
 }
 
-async function cloudSaveNow() {
-    if (!_fbUser || !_fbFirestore) { showToast('⚠️ לא מחובר לענן'); return; }
-    if (students.length === 0) { showToast('⚠️ אין תלמידים — לא מעלה לענן'); return; }
+async function cloudSaveNow(silent) {
+    if (!_fbUser || !_fbFirestore) { if (!silent) showToast('⚠️ לא מחובר לענן'); return; }
+    if (students.length === 0) { if (!silent) showToast('⚠️ אין תלמידים — לא מעלה לענן'); return; }
     clearTimeout(_cloudSyncTimer);
     try {
         const snapshot = _getCloudSnapshot();
+        console.log('[cloudSaveNow] uploading', snapshot.students.length, 'students');
         await _fbFirestore.collection('teachers').doc(_fbUser.uid).set(snapshot);
         localStorage.setItem('cloudLastSync', snapshot.ts.toString());
         _updateCloudUI();
+        if (!silent) showToast('✅ הועלו לענן ' + snapshot.students.length + ' תלמידים');
     } catch (err) {
         showToast('⚠️ שגיאת ענן: ' + err.message);
+        console.error('[cloudSaveNow] error', err);
     }
 }
 
@@ -2424,7 +2427,7 @@ async function cloudPullNow() {
 function _scheduleCloudSync() {
     if (!_fbUser) return;
     clearTimeout(_cloudSyncTimer);
-    _cloudSyncTimer = setTimeout(cloudSaveNow, 12000);
+    _cloudSyncTimer = setTimeout(() => cloudSaveNow(true), 12000);
 }
 
 function _updateCloudUI() {
@@ -2490,7 +2493,7 @@ function removeFirebaseConfig() {
 document.addEventListener('visibilitychange', () => {
     if (!_fbUser) return;
     if (document.visibilityState === 'hidden') {
-        cloudSaveNow();
+        cloudSaveNow(true);
     } else {
         _checkAndPullCloud();
     }
