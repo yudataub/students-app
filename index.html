@@ -2319,11 +2319,14 @@ async function _onCloudLogin(user) {
     const ref = _fbStorage.ref(`teachers/${user.uid}/data.json`);
     try {
         const url = await ref.getDownloadURL();
-        const cloud = await fetch(url).then(r => r.json());
+        // cache-bust so we always get the latest version
+        const res = await fetch(url + (url.includes('?') ? '&' : '?') + '_cb=' + Date.now());
+        if (!res.ok) throw new Error('fetch ' + res.status);
+        const cloud = await res.json();
+        console.log('[cloud login] cloud students:', cloud.students && cloud.students.length, 'local:', students.length);
         if (cloud.students && cloud.students.length > 0) {
             if (students.length > 0) {
                 const cloudDate = new Date(cloud.ts).toLocaleDateString('he');
-                const localDate = new Date(parseInt(localStorage.getItem('cloudLastSync') || '0')).toLocaleDateString('he');
                 const loadCloud = confirm(
                     `☁️ נמצאו נתונים בענן (${cloud.students.length} תלמידים, ${cloudDate})\n` +
                     `💾 ויש נתונים מקומיים (${students.length} תלמידים)\n\n` +
@@ -2340,14 +2343,18 @@ async function _onCloudLogin(user) {
             if (students.length > 0) {
                 await cloudSaveNow();
                 showToast('☁️ הנתונים המקומיים הועלו לענן');
+            } else {
+                showToast('☁️ מחובר לענן (אין נתונים עדיין)');
             }
-            // else: both empty — do nothing
         }
-    } catch {
+    } catch(err) {
+        console.error('[cloud login] error:', err);
         // No cloud file yet — only upload if we have local data
         if (students.length > 0) {
             await cloudSaveNow();
             showToast('☁️ הנתונים הועלו לענן בהצלחה');
+        } else {
+            showToast('☁️ מחובר — לא נמצאו נתונים בענן (' + err.message + ')');
         }
     }
 }
