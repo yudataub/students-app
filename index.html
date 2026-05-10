@@ -388,6 +388,25 @@
             z-index: 3000; display: none; align-items: center; justify-content: center; padding: 20px;
         }
         .settings-overlay.open { display: flex; }
+        /* CLOUD SYNC */
+        #user-avatar-btn { width:32px;height:32px;border-radius:50%;object-fit:cover;cursor:pointer;border:2px solid rgba(255,255,255,0.6);display:none;flex-shrink:0; }
+        .cloud-section { border-top:1px solid #f3f4f6;margin-top:16px;padding-top:14px; }
+        .cloud-section h4 { font-size:0.88rem;font-weight:700;color:#374151;margin-bottom:10px; }
+        .cloud-user-card { display:flex;align-items:center;gap:10px;background:#f0fdf4;border-radius:12px;padding:10px 12px;margin-bottom:10px; }
+        .cloud-user-card img { width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0; }
+        .cloud-sync-status { font-size:0.73rem;color:#9ca3af;margin-bottom:10px;text-align:center; }
+        .cloud-btn { width:100%;padding:10px;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;font-weight:700;cursor:pointer;margin-bottom:7px;display:flex;align-items:center;justify-content:center;gap:8px; }
+        .cloud-btn.google { background:#fff;color:#374151;border:1.5px solid #e5e7eb; }
+        .cloud-btn.google img { width:18px;height:18px; }
+        .cloud-btn.sync { background:#3b82f6;color:white; }
+        .cloud-btn.danger { background:#fef2f2;color:#dc2626;border:1px solid #fecaca; }
+        .cloud-setup-details { font-size:0.78rem;color:#6b7280;margin-bottom:10px; }
+        .cloud-setup-details summary { cursor:pointer;font-weight:600;color:#374151;margin-bottom:6px;list-style:none;display:flex;align-items:center;gap:6px; }
+        .cloud-setup-details summary::before { content:'▶'; font-size:0.65rem; transition:transform 0.2s; }
+        .cloud-setup-details[open] summary::before { transform:rotate(90deg); }
+        .cloud-setup-steps { margin:8px 0 0 4px;line-height:1.8; }
+        .cloud-setup-steps code { background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:0.75rem;font-family:monospace;direction:ltr;display:inline-block; }
+        #firebase-config-textarea { width:100%;min-height:80px;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:0.72rem;font-family:monospace;direction:ltr;box-sizing:border-box;resize:vertical;margin-bottom:8px; }
         .names-picker-list { max-height: 280px; overflow-y: auto; border: 1.5px solid #e5e7eb; border-radius: 12px; margin-bottom: 12px; }
         .names-picker-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f3f4f6; font-size: 0.93rem; transition: background 0.12s; }
         .names-picker-item:last-child { border-bottom: none; }
@@ -593,6 +612,7 @@
     <h1 id="header-title">🎓 זוכר שמות</h1>
     <div style="display:flex;gap:6px;align-items:center;">
         <button id="guide-btn" onclick="openGuide()" title="מדריך" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1rem;font-weight:700;">?</button>
+        <img id="user-avatar-btn" onclick="openSettings()" title="חשבון מחובר — לחץ להגדרות" alt="">
         <button id="settings-btn" onclick="openSettings()" title="הגדרות">⚙️</button>
     </div>
 </header>
@@ -866,7 +886,7 @@
 
     <!-- SETTINGS MODAL -->
     <div class="settings-overlay" id="settings-overlay" onclick="closeSettings(event)">
-        <div class="settings-box">
+        <div class="settings-box" style="max-height:88vh;overflow-y:auto;">
             <h3>⚙️ הגדרות</h3>
             <p class="settings-desc">בחר ספק AI והכנס מפתח API כדי לאפשר יצירת אמוג'י אוטומטית לתלמידים.</p>
             <select id="settings-provider" onchange="loadKeyForProvider()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;margin-bottom:10px;font-size:0.9rem;font-family:inherit;direction:rtl;box-sizing:border-box;">
@@ -878,6 +898,58 @@
             <div class="settings-row">
                 <button class="btn-settings-save" onclick="saveSettings()">שמור</button>
                 <button class="btn-settings-cancel" onclick="closeSettings()">ביטול</button>
+            </div>
+
+            <!-- CLOUD SYNC SECTION -->
+            <div class="cloud-section">
+                <h4>☁️ סנכרון ענן — גישה מכל מכשיר</h4>
+
+                <!-- State: not configured -->
+                <div id="cloud-not-configured">
+                    <details class="cloud-setup-details">
+                        <summary>📋 הוראות הגדרה (Firebase חינמי)</summary>
+                        <ol class="cloud-setup-steps">
+                            <li>כנס ל-<strong>console.firebase.google.com</strong> עם חשבון Google</li>
+                            <li>לחץ "צור פרויקט" → תן שם → המשך</li>
+                            <li>בפרויקט: לחץ <code>&lt;/&gt;</code> (Web App) → תן שם → Register app</li>
+                            <li>העתק את כל הטקסט של <code>firebaseConfig = {'{'}...{'}'}</code> — רק את החלק בסוגריים המסולסלים</li>
+                            <li>Authentication → Sign-in method → Google → הפעל ✓</li>
+                            <li>Storage → Get started → Production mode → Done</li>
+                            <li>Storage → Rules → שנה ל:<br>
+                                <code>allow read, write: if request.auth != null &amp;&amp; request.auth.uid == userId;</code><br>
+                                (שמור את הקובץ המלא שיופיע בשלב זה ←
+                                <a href="#" onclick="showStorageRules();return false;" style="color:#3b82f6;font-size:0.75rem;">הצג rules מלאים</a>)
+                            </li>
+                            <li>הדבק את הקונפיגורציה בתיבה למטה</li>
+                        </ol>
+                    </details>
+                    <textarea id="firebase-config-textarea" placeholder='{"apiKey":"AIza...","authDomain":"your-app.firebaseapp.com","projectId":"your-app","storageBucket":"your-app.appspot.com","messagingSenderId":"123...","appId":"1:123...:web:abc..."}'></textarea>
+                    <button class="cloud-btn sync" onclick="saveFirebaseConfig()">✅ הגדר סנכרון ענן</button>
+                </div>
+
+                <!-- State: configured, not logged in -->
+                <div id="cloud-configured-offline" style="display:none">
+                    <p style="font-size:0.82rem;color:#6b7280;margin-bottom:10px;text-align:center;">Firebase מוגדר — היכנס עם Google כדי לסנכרן</p>
+                    <button class="cloud-btn google" onclick="signInWithGoogle()">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+                        כניסה עם Google
+                    </button>
+                    <button class="cloud-btn danger" onclick="removeFirebaseConfig()">🗑️ הסר הגדרות Firebase</button>
+                </div>
+
+                <!-- State: logged in -->
+                <div id="cloud-logged-in" style="display:none">
+                    <div class="cloud-user-card">
+                        <img id="cloud-user-photo" src="" alt="" style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+                        <div>
+                            <div id="cloud-user-name" style="font-weight:700;font-size:0.9rem;"></div>
+                            <div id="cloud-user-email" style="font-size:0.75rem;color:#6b7280;"></div>
+                        </div>
+                    </div>
+                    <div class="cloud-sync-status" id="cloud-sync-status">בודק סנכרון...</div>
+                    <button class="cloud-btn sync" onclick="cloudSaveNow()">☁️ סנכרן עכשיו</button>
+                    <button class="cloud-btn danger" onclick="signOutUser()">🚪 יציאה מהחשבון</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1178,6 +1250,7 @@ students.forEach(s => { if (s.className === undefined) s.className = ''; });
 function saveData() {
     try { localStorage.setItem('students', JSON.stringify(students)); }
     catch(e) { showToast('⚠️ אין מספיק מקום — נסה למחוק תלמידים ישנים'); }
+    _scheduleCloudSync();
 }
 function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 function getClasses() { return [...new Set(students.map(s => s.className).filter(Boolean))].sort(); }
@@ -2100,6 +2173,7 @@ function showToast(msg) {
 
 // ===== INIT =====
 renderHome();
+initFirebase();
 
 // ===== EMOJI MEMORY FEATURE =====
 function showEmojiPopupFor(studentId) {
@@ -2165,6 +2239,211 @@ function saveSettings() {
     document.getElementById('settings-overlay').classList.remove('open');
     showToast('✅ הגדרות נשמרו');
 }
+function showStorageRules() {
+    alert(`rules_version = '2';\nservice firebase.storage {\n  match /b/{bucket}/o {\n    match /teachers/{userId}/{allPaths=**} {\n      allow read, write: if request.auth != null\n        && request.auth.uid == userId;\n    }\n  }\n}`);
+}
+
+// ===== CLOUD SYNC (Firebase) =====
+let _fbAuth = null, _fbStorage = null, _fbUser = null, _cloudSyncTimer = null;
+
+function _loadScript(src) {
+    return new Promise((res, rej) => {
+        if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+        const s = document.createElement('script');
+        s.src = src; s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+    });
+}
+async function _loadFirebaseSDK() {
+    if (window._fbSDKLoaded) return;
+    const BASE = 'https://www.gstatic.com/firebasejs/10.12.2';
+    await _loadScript(`${BASE}/firebase-app-compat.js`);
+    await Promise.all([
+        _loadScript(`${BASE}/firebase-auth-compat.js`),
+        _loadScript(`${BASE}/firebase-storage-compat.js`),
+    ]);
+    window._fbSDKLoaded = true;
+}
+
+async function initFirebase() {
+    const configStr = localStorage.getItem('firebaseConfig');
+    if (!configStr) { _updateCloudUI(); return; }
+    try {
+        await _loadFirebaseSDK();
+        const config = JSON.parse(configStr);
+        if (!firebase.apps.length) firebase.initializeApp(config);
+        _fbAuth    = firebase.auth();
+        _fbStorage = firebase.storage();
+        _fbAuth.onAuthStateChanged(user => {
+            _fbUser = user;
+            _updateCloudUI();
+            if (user) _onCloudLogin(user);
+        });
+    } catch (err) {
+        console.error('Firebase init error:', err);
+        _updateCloudUI();
+    }
+}
+
+async function signInWithGoogle() {
+    try {
+        await _loadFirebaseSDK();
+        if (!_fbAuth) await initFirebase();
+        const provider = new firebase.auth.GoogleAuthProvider();
+        await _fbAuth.signInWithPopup(provider);
+    } catch (err) {
+        showToast('⚠️ שגיאה בכניסה: ' + err.message);
+    }
+}
+
+async function signOutUser() {
+    if (!_fbAuth) return;
+    await _fbAuth.signOut().catch(() => {});
+    _fbUser = null;
+    _updateCloudUI();
+    showToast('👋 יצאת מהחשבון');
+}
+
+async function _onCloudLogin(user) {
+    const ref = _fbStorage.ref(`teachers/${user.uid}/data.json`);
+    try {
+        const url = await ref.getDownloadURL();
+        const cloud = await fetch(url).then(r => r.json());
+        if (cloud.students && cloud.students.length > 0) {
+            if (students.length > 0) {
+                const cloudDate = new Date(cloud.ts).toLocaleDateString('he');
+                const localDate = new Date(parseInt(localStorage.getItem('cloudLastSync') || '0')).toLocaleDateString('he');
+                const loadCloud = confirm(
+                    `☁️ נמצאו נתונים בענן (${cloud.students.length} תלמידים, ${cloudDate})\n` +
+                    `💾 ויש נתונים מקומיים (${students.length} תלמידים)\n\n` +
+                    `לחץ אישור כדי לטעון מהענן\nלחץ ביטול כדי לשמור את הנתונים המקומיים לענן`
+                );
+                if (loadCloud) { _applyCloudData(cloud); showToast('☁️ נתונים נטענו מהענן'); }
+                else { await cloudSaveNow(); }
+            } else {
+                _applyCloudData(cloud);
+                showToast(`☁️ נטענו ${cloud.students.length} תלמידים מהענן`);
+            }
+        } else {
+            await cloudSaveNow();
+            showToast('☁️ הנתונים המקומיים הועלו לענן');
+        }
+    } catch {
+        // No cloud data yet — upload local
+        await cloudSaveNow();
+        showToast('☁️ הנתונים הועלו לענן בהצלחה');
+    }
+}
+
+function _getCloudSnapshot() {
+    const seating = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k.startsWith('seating_')) seating[k] = JSON.parse(localStorage.getItem(k));
+    }
+    return { v: 1, ts: Date.now(), students, seating, importedNamesMap };
+}
+
+function _applyCloudData(data) {
+    students = data.students || [];
+    if (data.importedNamesMap) {
+        importedNamesMap = data.importedNamesMap;
+        localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
+    }
+    // Clear old seating
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('seating_')) localStorage.removeItem(k);
+    }
+    Object.entries(data.seating || {}).forEach(([k, v]) => localStorage.setItem(k, JSON.stringify(v)));
+    localStorage.setItem('students', JSON.stringify(students));
+    localStorage.setItem('cloudLastSync', data.ts.toString());
+    renderHome();
+}
+
+async function cloudSaveNow() {
+    if (!_fbUser || !_fbStorage) { showToast('⚠️ לא מחובר לענן'); return; }
+    clearTimeout(_cloudSyncTimer);
+    try {
+        const blob = new Blob([JSON.stringify(_getCloudSnapshot())], { type: 'application/json' });
+        await _fbStorage.ref(`teachers/${_fbUser.uid}/data.json`).put(blob);
+        const now = Date.now();
+        localStorage.setItem('cloudLastSync', now.toString());
+        _updateCloudUI();
+    } catch (err) {
+        showToast('⚠️ שגיאת ענן: ' + err.message);
+    }
+}
+
+function _scheduleCloudSync() {
+    if (!_fbUser) return;
+    clearTimeout(_cloudSyncTimer);
+    _cloudSyncTimer = setTimeout(cloudSaveNow, 12000);
+}
+
+function _updateCloudUI() {
+    const hasConfig = !!localStorage.getItem('firebaseConfig');
+    const el = id => document.getElementById(id);
+    const show = (id, visible) => { const e = el(id); if (e) e.style.display = visible ? '' : 'none'; };
+
+    show('cloud-not-configured',   !hasConfig);
+    show('cloud-configured-offline', hasConfig && !_fbUser);
+    show('cloud-logged-in',        hasConfig && !!_fbUser);
+
+    const avatarBtn = el('user-avatar-btn');
+    if (_fbUser && _fbUser.photoURL) {
+        avatarBtn.src = _fbUser.photoURL;
+        avatarBtn.style.display = 'block';
+    } else {
+        avatarBtn.style.display = 'none';
+    }
+
+    if (_fbUser) {
+        const nameEl = el('cloud-user-name');
+        const emailEl = el('cloud-user-email');
+        const photoEl = el('cloud-user-photo');
+        const statusEl = el('cloud-sync-status');
+        if (nameEl)  nameEl.textContent  = _fbUser.displayName || _fbUser.email;
+        if (emailEl) emailEl.textContent = _fbUser.email;
+        if (photoEl && _fbUser.photoURL) photoEl.src = _fbUser.photoURL;
+        const last = localStorage.getItem('cloudLastSync');
+        if (statusEl && last) {
+            const d = new Date(parseInt(last));
+            statusEl.textContent = `סנכרון אחרון: ${d.toLocaleDateString('he')} ${d.toLocaleTimeString('he', { hour: '2-digit', minute: '2-digit' })}`;
+        } else if (statusEl) {
+            statusEl.textContent = 'טרם בוצע סנכרון';
+        }
+    }
+}
+
+function saveFirebaseConfig() {
+    const val = document.getElementById('firebase-config-textarea').value.trim();
+    if (!val) return;
+    try {
+        JSON.parse(val);
+        localStorage.setItem('firebaseConfig', val);
+        showToast('✅ הגדרות Firebase נשמרו');
+        initFirebase();
+        document.getElementById('settings-overlay').classList.remove('open');
+    } catch {
+        showToast('⚠️ הקונפיגורציה אינה תקינה — בדוק ש-JSON שלם ותקין');
+    }
+}
+
+function removeFirebaseConfig() {
+    if (!confirm('להסיר את הגדרות הענן?')) return;
+    if (_fbAuth) _fbAuth.signOut().catch(() => {});
+    _fbUser = null; _fbAuth = null; _fbStorage = null;
+    localStorage.removeItem('firebaseConfig');
+    localStorage.removeItem('cloudLastSync');
+    _updateCloudUI();
+    showToast('הסנכרון הוסר');
+}
+
+// Sync on page hide (tab close / navigate away)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && _fbUser) cloudSaveNow();
+});
 
 // AI emoji generation
 async function generateEmoji() {
