@@ -2353,13 +2353,25 @@ function _getCloudSnapshot() {
         const k = localStorage.key(i);
         if (k.startsWith('seating_')) seating[k] = JSON.parse(localStorage.getItem(k));
     }
-    return { v: 1, ts: Date.now(), students, seating, importedNamesMap };
+    // Firestore forbids empty-string field names — encode '' as '__noclass__'
+    const namesMap = {};
+    Object.entries(importedNamesMap).forEach(([k, v]) => {
+        namesMap[k === '' ? '__noclass__' : k] = v;
+    });
+    // Strip base64 photos to stay within Firestore 1MB doc limit
+    const studentsNoPhoto = students.map(s => { const c = {...s}; delete c.photo; return c; });
+    return { v: 1, ts: Date.now(), students: studentsNoPhoto, seating, importedNamesMap: namesMap };
 }
 
 function _applyCloudData(data) {
     students = data.students || [];
     if (data.importedNamesMap) {
-        importedNamesMap = data.importedNamesMap;
+        // Decode '__noclass__' back to '' for legacy entries
+        const namesMap = {};
+        Object.entries(data.importedNamesMap).forEach(([k, v]) => {
+            namesMap[k === '__noclass__' ? '' : k] = v;
+        });
+        importedNamesMap = namesMap;
         localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
     }
     // Clear old seating
