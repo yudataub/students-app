@@ -514,6 +514,36 @@
             cursor: pointer; font-family: inherit;
         }
         .btn-guide-close:hover { background: #2563eb; }
+
+        /* CLASSROOM */
+        .classroom-grid { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+        .classroom-row { display:flex; gap:8px; justify-content:center; }
+        .classroom-desk { display:flex; gap:3px; background:#f1f5f9; border-radius:8px; padding:4px; }
+        .classroom-seat {
+            border:2px dashed #d1d5db; border-radius:7px;
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            cursor:pointer; background:white; position:relative; overflow:hidden;
+            flex-shrink:0; transition:border-color 0.15s, background 0.15s;
+        }
+        .classroom-seat.seat-open:hover, .classroom-seat.seat-open.ready { border-color:#10b981; border-style:solid; background:#f0fdf4; }
+        .classroom-seat.seat-filled { border-style:solid; border-color:#e2e8f0; }
+        .classroom-seat.seat-filled:hover { border-color:#ef4444; background:#fef2f2; }
+        .classroom-seat img { width:100%; object-fit:cover; object-position:top; display:block; }
+        .classroom-seat .seat-name { font-size:0.52rem; font-weight:700; text-align:center; color:#374151; padding:1px 2px; line-height:1.2; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .classroom-seat .seat-plus { color:#d1d5db; line-height:1; }
+        .classroom-seat.quiz-correct { border-color:#10b981 !important; border-style:solid !important; background:#f0fdf4 !important; }
+        .classroom-seat.quiz-wrong   { border-color:#ef4444 !important; border-style:solid !important; background:#fef2f2 !important; }
+        .seat-result-icon { position:absolute; top:2px; left:2px; font-size:0.65rem; background:white; border-radius:50%; width:14px; height:14px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,0.2); }
+        .classroom-teacher-zone { background:linear-gradient(135deg,#1e3a8a,#1d4ed8); color:white; border-radius:10px; padding:10px 14px; text-align:center; font-weight:700; font-size:0.88rem; margin:4px 0 10px; }
+        .pool-wrap { background:white; border-radius:14px; padding:12px 14px; box-shadow:0 2px 8px rgba(0,0,0,0.07); margin-bottom:12px; }
+        .pool-label { font-size:0.72rem; font-weight:700; color:#9ca3af; letter-spacing:0.04em; margin-bottom:8px; }
+        .pool-grid { display:flex; flex-wrap:wrap; gap:6px; }
+        .pool-card { width:52px; cursor:pointer; border-radius:8px; overflow:hidden; border:2.5px solid transparent; transition:border-color 0.15s, transform 0.1s; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        .pool-card:hover { transform:scale(1.06); }
+        .pool-card.pool-selected { border-color:#f59e0b; box-shadow:0 0 0 2px #f59e0b; }
+        .pool-card img { width:100%; height:52px; object-fit:cover; object-position:top; display:block; }
+        .pool-card .pool-name { font-size:0.5rem; font-weight:700; text-align:center; padding:2px; color:#374151; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .class-action-btn.classroom-btn-sm:hover { color:#1d4ed8; }
     </style>
 </head>
 <body>
@@ -798,6 +828,52 @@
         </div>
     </div>
 
+    <!-- CLASSROOM VIEW -->
+    <div id="view-classroom" class="view">
+        <div id="classroom-content"></div>
+    </div>
+
+    <!-- CLASSROOM SETUP MODAL -->
+    <div class="settings-overlay" id="classroom-setup-overlay" onclick="closeClassroomSetup(event)">
+        <div class="settings-box">
+            <h3>🏫 מבנה הכיתה</h3>
+            <p class="settings-desc">בכל שולחן יושבים 2 תלמידים. הגדר את מספר השולחנות לרוחב ולאורך.</p>
+            <div style="display:flex;gap:12px;margin-bottom:12px;align-items:flex-end;">
+                <div style="flex:1;">
+                    <label style="display:block;font-size:0.82rem;font-weight:600;color:#374151;margin-bottom:6px;">שולחנות לרוחב</label>
+                    <input type="number" id="classroom-cols-input" value="4" min="1" max="8" oninput="updateClassroomCount()" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:1.2rem;text-align:center;box-sizing:border-box;">
+                </div>
+                <div style="padding-bottom:12px;color:#9ca3af;font-weight:700;font-size:1.1rem;">×</div>
+                <div style="flex:1;">
+                    <label style="display:block;font-size:0.82rem;font-weight:600;color:#374151;margin-bottom:6px;">שורות לאורך</label>
+                    <input type="number" id="classroom-rows-input" value="5" min="1" max="14" oninput="updateClassroomCount()" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:1.2rem;text-align:center;box-sizing:border-box;">
+                </div>
+            </div>
+            <div id="classroom-setup-count" style="font-size:0.82rem;color:#6b7280;margin-bottom:14px;text-align:center;background:#f8fafc;padding:8px;border-radius:8px;"></div>
+            <div class="settings-row">
+                <button class="btn-settings-save" onclick="confirmClassroomSetup()">בנה כיתה ←</button>
+                <button class="btn-settings-cancel" onclick="closeClassroomSetup()">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CLASSROOM QUIZ INPUT MODAL -->
+    <div class="settings-overlay" id="cq-overlay" onclick="closeCQOverlay(event)">
+        <div class="settings-box" style="text-align:center;">
+            <img id="cq-photo" style="width:120px;height:120px;object-fit:cover;object-position:top;border-radius:14px;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;">
+            <div id="cq-emoji-hint" style="display:none;font-size:2.8rem;margin-bottom:4px;"></div>
+            <div id="cq-letter-hint" style="display:none;font-size:1.7rem;font-weight:800;color:#0e7490;letter-spacing:0.15em;margin-bottom:10px;"></div>
+            <input type="text" id="cq-input" placeholder="כתוב את השם..." autocomplete="off" direction="rtl"
+                style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:1rem;direction:rtl;font-family:inherit;box-sizing:border-box;margin-bottom:10px;"
+                onkeydown="if(event.key==='Enter')checkCQAnswer()">
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+                <button onclick="checkCQAnswer()" style="flex:2;padding:11px;background:#06b6d4;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.95rem;font-weight:700;cursor:pointer;">בדוק ✓</button>
+                <button onclick="showCQHint()" style="flex:1;padding:11px;background:#fef3c7;color:#b45309;border:none;border-radius:10px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;">💡 רמז</button>
+            </div>
+            <button onclick="closeCQOverlay()" style="width:100%;padding:9px;background:#f3f4f6;color:#6b7280;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">דלג</button>
+        </div>
+    </div>
+
     <!-- LAST NAME IMPORT MODAL -->
     <div class="settings-overlay" id="lastname-overlay" onclick="closeLastNameImport(event)">
         <div class="settings-box" style="max-width:400px;">
@@ -971,7 +1047,7 @@ let navStack = ['home'];
 function showView(name, title) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('view-' + name).classList.add('active');
-    const titles = { home:'🎓 זוכר שמות', add:'➕ הוסף תלמיד', bulk:'📁 העלאת קבוצה', gallery:'📋 תלמידים', detail:'👤 פרופיל', quiz:'📝 מבחן', rquiz:'🔍 מצא בתמונה', mquiz:'✍️ מבחן זיכרון', summary:'📊 תוצאות' };
+    const titles = { home:'🎓 זוכר שמות', add:'➕ הוסף תלמיד', bulk:'📁 העלאת קבוצה', gallery:'📋 תלמידים', detail:'👤 פרופיל', quiz:'📝 מבחן', rquiz:'🔍 מצא בתמונה', mquiz:'✍️ מבחן זיכרון', summary:'📊 תוצאות', classroom:'🏫 סידור כיתה' };
     document.getElementById('header-title').textContent = title || titles[name] || '';
     const notHome = name !== 'home';
     document.getElementById('back-btn').style.display = notHome ? 'block' : 'none';
@@ -1086,6 +1162,14 @@ function renderHome() {
         mquizBtn.className = `class-action-btn mquiz-btn-sm${canQuiz ? '' : ' disabled'}`;
         mquizBtn.innerHTML = '✍️ זיכרון';
         if (canQuiz) mquizBtn.onclick = () => showMQuizSetup(isNone ? null : key);
+
+        const sep4 = document.createElement('div');
+        sep4.className = 'class-sep';
+        const classroomBtn = document.createElement('button');
+        classroomBtn.className = 'class-action-btn classroom-btn-sm';
+        classroomBtn.innerHTML = '🏫 כיתה';
+        classroomBtn.onclick = () => showClassroom(isNone ? null : key);
+
         actions.appendChild(galleryBtn);
         actions.appendChild(sep);
         actions.appendChild(quizBtn);
@@ -1093,6 +1177,8 @@ function renderHome() {
         actions.appendChild(rquizBtn);
         actions.appendChild(sep3);
         actions.appendChild(mquizBtn);
+        actions.appendChild(sep4);
+        actions.appendChild(classroomBtn);
         card.appendChild(actions);
         list.appendChild(card);
     });
@@ -1129,6 +1215,14 @@ function renderHome() {
     allMquiz.className = `class-action-btn mquiz-btn-sm${canAll ? '' : ' disabled'}`;
     allMquiz.innerHTML = '✍️ זיכרון';
     if (canAll) allMquiz.onclick = () => showMQuizSetup(undefined);
+
+    const allSep4 = document.createElement('div');
+    allSep4.className = 'class-sep';
+    const allClassroom = document.createElement('button');
+    allClassroom.className = 'class-action-btn classroom-btn-sm';
+    allClassroom.innerHTML = '🏫 כיתה';
+    allClassroom.onclick = () => showClassroom(undefined);
+
     allRow.appendChild(allGallery);
     allRow.appendChild(allSep);
     allRow.appendChild(allQuiz);
@@ -1136,6 +1230,8 @@ function renderHome() {
     allRow.appendChild(allRquiz);
     allRow.appendChild(allSep3);
     allRow.appendChild(allMquiz);
+    allRow.appendChild(allSep4);
+    allRow.appendChild(allClassroom);
     list.appendChild(allRow);
 
     populateClassSelect('input-class');
@@ -2129,6 +2225,330 @@ function mquizNext() {
     mquizIndex++;
     if (mquizIndex >= mquizStudents.length) showSummary('mquiz');
     else renderMQuestion();
+}
+
+// ===== CLASSROOM =====
+let classroomClass, classroomCols, classroomRows;
+let classroomSeats = [];          // array of studentId | null, length = cols*rows*2
+let classroomSelectedPoolId = null;
+let classroomMode = 'build';      // 'build' | 'quiz'
+let classroomQuizResults = {};    // studentId -> 'correct' | 'wrong'
+let cqActiveSeatIdx = null;
+
+function getSeating(cls) {
+    return JSON.parse(localStorage.getItem('seating_' + (cls === undefined ? '__all__' : cls === null ? '__none__' : cls)) || 'null');
+}
+function saveSeatingData(cls, data) {
+    localStorage.setItem('seating_' + (cls === undefined ? '__all__' : cls === null ? '__none__' : cls), JSON.stringify(data));
+}
+function classroomPool() {
+    const isAll = classroomClass === undefined, isNone = classroomClass === null;
+    const base = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === classroomClass);
+    const placed = new Set(classroomSeats.filter(Boolean));
+    return base.filter(s => !placed.has(s.id));
+}
+
+function showClassroom(cls) {
+    classroomClass = cls;
+    const existing = getSeating(cls);
+    if (existing) {
+        classroomCols = existing.cols;
+        classroomRows = existing.rows;
+        classroomSeats = [...existing.seats];
+        classroomMode = 'quiz';
+        classroomQuizResults = {};
+        classroomSelectedPoolId = null;
+    } else {
+        openClassroomSetup(cls);
+        return;
+    }
+    renderClassroomView();
+    const title = cls === undefined ? '🏫 כל הכיתות' : cls === null ? '🏫 ללא כיתה' : `🏫 ${cls}`;
+    showView('classroom', title);
+}
+
+function openClassroomSetup(cls) {
+    classroomClass = cls;
+    updateClassroomCount();
+    document.getElementById('classroom-setup-overlay').classList.add('open');
+}
+function closeClassroomSetup(e) {
+    if (e && e.target !== document.getElementById('classroom-setup-overlay')) return;
+    document.getElementById('classroom-setup-overlay').classList.remove('open');
+}
+function updateClassroomCount() {
+    const c = parseInt(document.getElementById('classroom-cols-input').value) || 4;
+    const r = parseInt(document.getElementById('classroom-rows-input').value) || 5;
+    document.getElementById('classroom-setup-count').textContent = `${c} עמודות × ${r} שורות = ${c * r * 2} מקומות ישיבה`;
+}
+function confirmClassroomSetup() {
+    classroomCols = Math.max(1, parseInt(document.getElementById('classroom-cols-input').value) || 4);
+    classroomRows = Math.max(1, parseInt(document.getElementById('classroom-rows-input').value) || 5);
+    document.getElementById('classroom-setup-overlay').classList.remove('open');
+    const existing = getSeating(classroomClass);
+    if (existing && existing.cols === classroomCols && existing.rows === classroomRows) {
+        classroomSeats = [...existing.seats];
+    } else {
+        classroomSeats = new Array(classroomCols * classroomRows * 2).fill(null);
+    }
+    classroomMode = 'build';
+    classroomSelectedPoolId = null;
+    classroomQuizResults = {};
+    renderClassroomView();
+    const title = classroomClass === undefined ? '🏫 כל הכיתות' : classroomClass === null ? '🏫 ללא כיתה' : `🏫 ${classroomClass}`;
+    showView('classroom', title);
+}
+
+// Calculate seat pixel size based on viewport & column count
+function calcSeatSize() {
+    const avail = Math.min(window.innerWidth, 500) - 32;
+    const deskW = (avail - (classroomCols - 1) * 8 - classroomCols * (3 + 8)) / classroomCols;
+    const w = Math.max(36, Math.min(72, Math.floor(deskW / 2)));
+    return { w, h: Math.round(w * 1.35) };
+}
+
+function renderClassroomView() {
+    const cont = document.getElementById('classroom-content');
+    cont.innerHTML = '';
+    classroomMode === 'build' ? renderClassroomBuilder(cont) : renderClassroomQuiz(cont);
+}
+
+function renderClassroomBuilder(cont) {
+    const { w, h } = calcSeatSize();
+    const photoH = h - 18;
+
+    const grid = document.createElement('div');
+    grid.className = 'classroom-grid';
+
+    for (let r = 0; r < classroomRows; r++) {
+        const row = document.createElement('div');
+        row.className = 'classroom-row';
+        for (let c = 0; c < classroomCols; c++) {
+            const desk = document.createElement('div');
+            desk.className = 'classroom-desk';
+            for (let s = 0; s < 2; s++) {
+                const idx = (r * classroomCols + c) * 2 + s;
+                desk.appendChild(makeBuilderSeat(idx, w, photoH));
+            }
+            row.appendChild(desk);
+        }
+        grid.appendChild(row);
+    }
+    cont.appendChild(grid);
+
+    const teacherZone = document.createElement('div');
+    teacherZone.className = 'classroom-teacher-zone';
+    teacherZone.textContent = '👨‍🏫 המורה';
+    cont.appendChild(teacherZone);
+
+    // Pool
+    const pool = classroomPool();
+    const poolWrap = document.createElement('div');
+    poolWrap.className = 'pool-wrap';
+    const poolLbl = document.createElement('div');
+    poolLbl.className = 'pool-label';
+    poolLbl.textContent = pool.length > 0 ? `תלמידים לא מושבים (${pool.length}) — בחר תלמיד ואז לחץ על מקום ריק` : '✅ כל התלמידים מושבים';
+    poolWrap.appendChild(poolLbl);
+    if (pool.length > 0) {
+        const poolGrid = document.createElement('div');
+        poolGrid.className = 'pool-grid';
+        pool.forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'pool-card' + (classroomSelectedPoolId === s.id ? ' pool-selected' : '');
+            card.innerHTML = `<img src="${s.photo}" alt="${s.name}"><div class="pool-name">${s.name}</div>`;
+            card.onclick = () => { classroomSelectedPoolId = s.id; renderClassroomView(); };
+            poolGrid.appendChild(card);
+        });
+        poolWrap.appendChild(poolGrid);
+    }
+    cont.appendChild(poolWrap);
+
+    if (classroomSeats.filter(Boolean).length > 0) {
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn-primary';
+        saveBtn.style.marginTop = '4px';
+        saveBtn.innerHTML = '💾 שמור סידור כיתה';
+        saveBtn.onclick = saveClassroomLayout;
+        cont.appendChild(saveBtn);
+    }
+}
+
+function makeBuilderSeat(idx, w, photoH) {
+    const studentId = classroomSeats[idx];
+    const seat = document.createElement('div');
+    seat.className = 'classroom-seat ' + (studentId ? 'seat-filled' : 'seat-open' + (classroomSelectedPoolId ? ' ready' : ''));
+    seat.style.width = w + 'px';
+    seat.style.height = (photoH + 18) + 'px';
+
+    if (studentId) {
+        const s = students.find(x => x.id === studentId);
+        if (s) {
+            const img = document.createElement('img');
+            img.src = s.photo;
+            img.style.height = photoH + 'px';
+            const nm = document.createElement('div');
+            nm.className = 'seat-name';
+            nm.textContent = s.name;
+            seat.appendChild(img);
+            seat.appendChild(nm);
+            seat.title = `${s.name} — לחץ להסרה`;
+            seat.onclick = () => { classroomSeats[idx] = null; renderClassroomView(); };
+        }
+    } else {
+        const plus = document.createElement('div');
+        plus.className = 'seat-plus';
+        plus.style.fontSize = Math.max(16, w * 0.45) + 'px';
+        plus.textContent = '+';
+        seat.appendChild(plus);
+        seat.onclick = () => {
+            if (!classroomSelectedPoolId) { showToast('בחר תחילה תלמיד מהרשימה למטה'); return; }
+            classroomSeats[idx] = classroomSelectedPoolId;
+            classroomSelectedPoolId = null;
+            renderClassroomView();
+        };
+    }
+    return seat;
+}
+
+function saveClassroomLayout() {
+    saveSeatingData(classroomClass, { cols: classroomCols, rows: classroomRows, seats: classroomSeats });
+    showToast('✅ סידור הכיתה נשמר!');
+    classroomMode = 'quiz';
+    classroomQuizResults = {};
+    renderClassroomView();
+}
+
+function renderClassroomQuiz(cont) {
+    const { w, h } = calcSeatSize();
+    const photoH = h - 18;
+
+    const grid = document.createElement('div');
+    grid.className = 'classroom-grid';
+
+    for (let r = 0; r < classroomRows; r++) {
+        const row = document.createElement('div');
+        row.className = 'classroom-row';
+        for (let c = 0; c < classroomCols; c++) {
+            const desk = document.createElement('div');
+            desk.className = 'classroom-desk';
+            for (let s = 0; s < 2; s++) {
+                const idx = (r * classroomCols + c) * 2 + s;
+                desk.appendChild(makeQuizSeat(idx, w, photoH));
+            }
+            row.appendChild(desk);
+        }
+        grid.appendChild(row);
+    }
+    cont.appendChild(grid);
+
+    const teacherZone = document.createElement('div');
+    teacherZone.className = 'classroom-teacher-zone';
+    teacherZone.textContent = '👨‍🏫 המורה';
+    cont.appendChild(teacherZone);
+
+    // Stats
+    const placedIds = classroomSeats.filter(Boolean);
+    const answered = Object.keys(classroomQuizResults).length;
+    const correct  = Object.values(classroomQuizResults).filter(r => r === 'correct').length;
+    if (answered > 0) {
+        const stats = document.createElement('div');
+        stats.style.cssText = 'text-align:center;padding:8px;font-size:0.88rem;color:#6b7280;background:white;border-radius:10px;margin-bottom:8px;';
+        stats.textContent = `${correct}/${answered} נכון · ${placedIds.length - answered} נותרו`;
+        cont.appendChild(stats);
+    }
+
+    // Edit button
+    const editBtn = document.createElement('button');
+    editBtn.style.cssText = 'width:100%;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;';
+    editBtn.textContent = '✏️ ערוך סידור';
+    editBtn.onclick = () => { classroomMode = 'build'; classroomSelectedPoolId = null; renderClassroomView(); };
+    cont.appendChild(editBtn);
+}
+
+function makeQuizSeat(idx, w, photoH) {
+    const studentId = classroomSeats[idx];
+    const seat = document.createElement('div');
+    seat.style.width = w + 'px';
+    seat.style.height = (photoH + 18) + 'px';
+
+    if (!studentId) {
+        seat.className = 'classroom-seat';
+        return seat;
+    }
+    const s = students.find(x => x.id === studentId);
+    if (!s) { seat.className = 'classroom-seat'; return seat; }
+
+    const result = classroomQuizResults[studentId];
+    seat.className = 'classroom-seat seat-filled' + (result === 'correct' ? ' quiz-correct' : result === 'wrong' ? ' quiz-wrong' : '');
+
+    const img = document.createElement('img');
+    img.src = s.photo;
+    img.style.height = photoH + 'px';
+    seat.appendChild(img);
+
+    const nm = document.createElement('div');
+    nm.className = 'seat-name';
+    nm.textContent = result ? s.name : '?';
+    nm.style.color = result ? '' : '#d1d5db';
+    seat.appendChild(nm);
+
+    if (result) {
+        const icon = document.createElement('div');
+        icon.className = 'seat-result-icon';
+        icon.textContent = result === 'correct' ? '✓' : '✗';
+        icon.style.color = result === 'correct' ? '#10b981' : '#ef4444';
+        seat.appendChild(icon);
+    } else {
+        seat.onclick = () => openCQInput(idx);
+    }
+    return seat;
+}
+
+function openCQInput(idx) {
+    cqActiveSeatIdx = idx;
+    const s = students.find(x => x.id === classroomSeats[idx]);
+    if (!s) return;
+    document.getElementById('cq-photo').src = s.photo;
+    document.getElementById('cq-input').value = '';
+    document.getElementById('cq-emoji-hint').style.display = 'none';
+    document.getElementById('cq-letter-hint').style.display = 'none';
+    document.getElementById('cq-overlay').classList.add('open');
+    setTimeout(() => document.getElementById('cq-input').focus(), 150);
+}
+function closeCQOverlay(e) {
+    if (e && e.target !== document.getElementById('cq-overlay')) return;
+    document.getElementById('cq-overlay').classList.remove('open');
+}
+function showCQHint() {
+    const s = students.find(x => x.id === classroomSeats[cqActiveSeatIdx]);
+    if (!s) return;
+    const firstName = s.name.trim().split(/\s+/)[0];
+    const hint = firstName.length > 2 ? firstName.slice(0, 2) + '....' : firstName;
+    const lh = document.getElementById('cq-letter-hint');
+    lh.textContent = hint;
+    lh.style.display = 'block';
+    if (s.emoji) {
+        const eh = document.getElementById('cq-emoji-hint');
+        eh.textContent = s.emoji;
+        eh.style.display = 'block';
+    }
+}
+function checkCQAnswer() {
+    const typed = document.getElementById('cq-input').value.trim();
+    if (!typed) return;
+    const s = students.find(x => x.id === classroomSeats[cqActiveSeatIdx]);
+    if (!s) return;
+    const parts = s.name.trim().split(/\s+/);
+    const isCorrect = typed === s.name.trim() ||
+                      typed === parts[0] ||
+                      (parts.length > 1 && typed === parts[parts.length - 1]);
+    classroomQuizResults[s.id] = isCorrect ? 'correct' : 'wrong';
+    if (isCorrect) { s.correct = (s.correct || 0) + 1; playCorrectSound(); }
+    else           { s.wrong   = (s.wrong   || 0) + 1; }
+    saveData();
+    document.getElementById('cq-overlay').classList.remove('open');
+    showToast(isCorrect ? '✅ נכון!' : `❌ זה ${s.name}`);
+    renderClassroomView();
 }
 
 // ===== EXPORT GALLERY =====
