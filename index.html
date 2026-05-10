@@ -1255,6 +1255,7 @@ if (!localStorage.getItem('guide_seen')) { setTimeout(openGuide, 400); }
 // ===== DATA =====
 let students = JSON.parse(localStorage.getItem('students') || '[]');
 students.forEach(s => { if (s.className === undefined) s.className = ''; });
+let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
 
 function saveData() {
     try { localStorage.setItem('students', JSON.stringify(students)); }
@@ -3862,8 +3863,6 @@ function saveFaceNamingGroup() {
 
 // ===== NAMES LIST PICKER =====
 // Storage: { className: [names, ...] }  —  '' key = "no class assigned" shown in all
-let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
-
 // ===== SHARE CLASS LINK =====
 function shareClassLink(className) {
     if (className === undefined) {
