@@ -694,7 +694,7 @@
                 <div class="upload-text">לחץ לבחירת תמונות מרובות</div>
                 <div class="upload-sub">בחר קבצים רבים בבת אחת · השם ייקרא משם הקובץ</div>
             </div>
-            <button onclick="document.getElementById('names-list-file-input').click();document.getElementById('names-picker-overlay').dataset.targetId=''" title="ייבא רשימת שמות" style="flex-shrink:0;padding:12px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:16px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:72px;">
+            <button onclick="openNamePickerForImport()" title="ייבא רשימת שמות" style="flex-shrink:0;padding:12px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:16px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:72px;">
                 <span style="font-size:1.4rem;">📋</span>
                 <span>ייבא<br>רשימה</span>
             </button>
@@ -1001,15 +1001,18 @@
     <!-- NAMES LIST PICKER MODAL -->
     <div class="settings-overlay" id="names-picker-overlay" onclick="closeNamePicker(event)">
         <div style="background:white;border-radius:20px;padding:20px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;display:flex;flex-direction:column;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                 <div style="font-weight:800;font-size:1rem;">📋 בחר שם מרשימה</div>
                 <button onclick="closeNamePicker()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
             </div>
+            <select id="names-picker-class-filter" onchange="filterNamesList()"
+                style="width:100%;padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:inherit;font-size:0.88rem;direction:rtl;box-sizing:border-box;margin-bottom:8px;background:#f9fafb;">
+            </select>
             <input type="text" id="names-picker-search" placeholder="חיפוש שם..." oninput="filterNamesList()"
                 style="width:100%;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:0.93rem;direction:rtl;font-family:inherit;box-sizing:border-box;margin-bottom:10px;">
             <div class="names-picker-list" id="names-picker-list"></div>
             <div style="display:flex;gap:8px;border-top:1px solid #f3f4f6;padding-top:12px;margin-top:4px;">
-                <button onclick="document.getElementById('names-list-file-input').click()" style="flex:1;padding:9px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">📂 ייבא רשימה</button>
+                <button onclick="document.getElementById('names-list-file-input').click()" style="flex:1;padding:9px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">📂 ייבא לכיתה זו</button>
                 <button onclick="closeNamePicker()" style="flex:1;padding:9px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">סגור</button>
             </div>
             <input type="file" id="names-list-file-input" accept=".txt,.csv,.xlsx,.xls,text/*" style="display:none" onchange="handleNamesListFile(event)">
@@ -3439,34 +3442,113 @@ function saveFaceNamingGroup() {
 }
 
 // ===== NAMES LIST PICKER =====
-let importedNames = JSON.parse(localStorage.getItem('importedNames') || '[]');
+// Storage: { className: [names, ...] }  —  '' key = "no class assigned" shown in all
+let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
+// Migrate old flat format if exists
+(function migrateLegacyNames() {
+    const old = JSON.parse(localStorage.getItem('importedNames') || '[]');
+    if (old.length && !Object.keys(importedNamesMap).length) {
+        importedNamesMap[''] = old;
+        localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
+    }
+})();
+
 let _namePickerTargetId = null;
 let _namePickerBulkIdx = null;
+
+function _getPickerContextClass() {
+    const id = _namePickerTargetId;
+    const clsVal = sel => sel && sel.value && sel.value !== NEW_CLASS_OPT ? sel.value : '__all__';
+    if (!id) return '__all__';
+    if (id === 'input-name') return clsVal(document.getElementById('input-class'));
+    if (id.startsWith('bulk-name-input-')) return clsVal(document.getElementById('bulk-class'));
+    if (id.startsWith('face-card-input-')) return clsVal(document.getElementById('face-detect-class'));
+    return '__all__';
+}
+
+function _populateNamesPickerClassFilter(selectedClass) {
+    const sel = document.getElementById('names-picker-class-filter');
+    if (!sel) return;
+    const classes = Object.keys(importedNamesMap);
+    sel.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = '__all__';
+    allOpt.textContent = 'כל הכיתות';
+    sel.appendChild(allOpt);
+    classes.forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = cls;
+        opt.textContent = cls || 'ללא כיתה';
+        sel.appendChild(opt);
+    });
+    const newOpt = document.createElement('option');
+    newOpt.value = '__new__';
+    newOpt.textContent = '+ כיתה חדשה...';
+    sel.appendChild(newOpt);
+    // Set selection — prefer exact match, fallback to __all__
+    if (selectedClass && selectedClass !== '__all__' && classes.includes(selectedClass)) {
+        sel.value = selectedClass;
+    } else {
+        sel.value = '__all__';
+    }
+}
 
 function openNamePicker(inputId, bulkIdx) {
     _namePickerTargetId = inputId;
     _namePickerBulkIdx = (bulkIdx !== undefined) ? bulkIdx : null;
     document.getElementById('names-picker-search').value = '';
+    _populateNamesPickerClassFilter(_getPickerContextClass());
     renderNamesPickerList('');
     document.getElementById('names-picker-overlay').classList.add('open');
     setTimeout(() => document.getElementById('names-picker-search').focus(), 100);
+}
+function openNamePickerForImport() {
+    _namePickerTargetId = null;
+    _namePickerBulkIdx = null;
+    document.getElementById('names-picker-search').value = '';
+    _populateNamesPickerClassFilter('__all__');
+    renderNamesPickerList('');
+    document.getElementById('names-picker-overlay').classList.add('open');
 }
 function closeNamePicker(e) {
     if (e && e.target !== document.getElementById('names-picker-overlay')) return;
     document.getElementById('names-picker-overlay').classList.remove('open');
 }
 function filterNamesList() {
+    const filterSel = document.getElementById('names-picker-class-filter');
+    if (filterSel && filterSel.value === '__new__') {
+        // Prompt for new class name
+        const newName = prompt('שם הכיתה החדשה:');
+        if (newName && newName.trim()) {
+            if (!importedNamesMap[newName.trim()]) importedNamesMap[newName.trim()] = [];
+            localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
+            _populateNamesPickerClassFilter(newName.trim());
+        } else {
+            _populateNamesPickerClassFilter('__all__');
+        }
+    }
     const q = document.getElementById('names-picker-search').value;
     renderNamesPickerList(q);
 }
 function renderNamesPickerList(query) {
     const listEl = document.getElementById('names-picker-list');
+    const filterClass = document.getElementById('names-picker-class-filter')?.value || '__all__';
+    const hasAny = Object.keys(importedNamesMap).length > 0;
+
+    let names;
+    if (filterClass === '__all__' || filterClass === '__new__') {
+        const seen = new Set();
+        names = [];
+        Object.values(importedNamesMap).forEach(arr => arr.forEach(n => { if (!seen.has(n)) { seen.add(n); names.push(n); } }));
+        names.sort((a, b) => a.localeCompare(b, 'he'));
+    } else {
+        names = (importedNamesMap[filterClass] || []);
+    }
+
     const q = query.trim();
-    const filtered = q
-        ? importedNames.filter(n => n.includes(q))
-        : importedNames;
+    const filtered = q ? names.filter(n => n.includes(q)) : names;
     if (!filtered.length) {
-        listEl.innerHTML = `<div class="names-picker-empty">${importedNames.length ? 'לא נמצאו תוצאות' : 'אין רשימת שמות. לחץ "ייבא רשימה" להעלאת קובץ.'}</div>`;
+        listEl.innerHTML = `<div class="names-picker-empty">${hasAny ? 'לא נמצאו שמות בכיתה זו' : 'אין רשימת שמות. לחץ "ייבא לכיתה זו" להעלאת קובץ.'}</div>`;
         return;
     }
     listEl.innerHTML = '';
@@ -3517,7 +3599,6 @@ function handleNamesListFile(e) {
         }).catch(() => showToast('⚠️ שגיאה בטעינת קובץ Excel'));
         return;
     }
-    // TXT/CSV: try UTF-8 then windows-1255
     const r1 = new FileReader();
     r1.onload = ev => {
         const text = ev.target.result;
@@ -3538,11 +3619,16 @@ function parseNamesFromText(text) {
 }
 function applyImportedNames(names) {
     if (!names.length) { showToast('⚠️ לא נמצאו שמות בקובץ'); return; }
-    importedNames = names;
-    localStorage.setItem('importedNames', JSON.stringify(importedNames));
+    const filterSel = document.getElementById('names-picker-class-filter');
+    const filterVal = filterSel ? filterSel.value : '__all__';
+    const className = (filterVal === '__all__' || filterVal === '__new__') ? '' : filterVal;
+    importedNamesMap[className] = names;
+    localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
+    _populateNamesPickerClassFilter(className || '__all__');
     renderNamesPickerList(document.getElementById('names-picker-search').value);
     document.getElementById('names-picker-overlay').classList.add('open');
-    showToast(`✅ נטענו ${names.length} שמות`);
+    const label = className || 'כל הכיתות';
+    showToast(`✅ נטענו ${names.length} שמות לכיתה: ${label}`);
 }
 function loadSheetJS() {
     if (window.XLSX) return Promise.resolve(window.XLSX);
