@@ -388,6 +388,11 @@
             z-index: 3000; display: none; align-items: center; justify-content: center; padding: 20px;
         }
         .settings-overlay.open { display: flex; }
+        .names-picker-list { max-height: 280px; overflow-y: auto; border: 1.5px solid #e5e7eb; border-radius: 12px; margin-bottom: 12px; }
+        .names-picker-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f3f4f6; font-size: 0.93rem; transition: background 0.12s; }
+        .names-picker-item:last-child { border-bottom: none; }
+        .names-picker-item:hover { background: #eff6ff; color: #1d4ed8; }
+        .names-picker-empty { padding: 24px; text-align: center; color: #9ca3af; font-size: 0.88rem; }
         .settings-box {
             background: white; border-radius: 20px; padding: 24px;
             max-width: 360px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
@@ -611,7 +616,10 @@
         </button>
         <div class="form-group">
             <label>שם מלא</label>
-            <input type="text" id="input-name" placeholder="שם פרטי ושם משפחה">
+            <div style="display:flex;gap:8px;align-items:stretch;">
+                <input type="text" id="input-name" placeholder="שם פרטי ושם משפחה" style="flex:1;">
+                <button onclick="openNamePicker('input-name')" title="בחר שם מרשימה" style="padding:0 13px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:10px;font-size:1.15rem;cursor:pointer;white-space:nowrap;line-height:1;">📋</button>
+            </div>
         </div>
         <div class="form-group">
             <label>כיתה</label>
@@ -648,10 +656,16 @@
                 <input type="text" id="bulk-new-class" placeholder="שם הכיתה החדשה">
             </div>
         </div>
-        <div class="bulk-drop-area" onclick="document.getElementById('bulk-input').click()">
-            <span class="upload-icon">📁</span>
-            <div class="upload-text">לחץ לבחירת תמונות מרובות</div>
-            <div class="upload-sub">בחר קבצים רבים בבת אחת · השם ייקרא משם הקובץ</div>
+        <div style="display:flex;gap:10px;margin-bottom:4px;">
+            <div class="bulk-drop-area" onclick="document.getElementById('bulk-input').click()" style="flex:1;margin-bottom:0;">
+                <span class="upload-icon">📁</span>
+                <div class="upload-text">לחץ לבחירת תמונות מרובות</div>
+                <div class="upload-sub">בחר קבצים רבים בבת אחת · השם ייקרא משם הקובץ</div>
+            </div>
+            <button onclick="document.getElementById('names-list-file-input').click();document.getElementById('names-picker-overlay').dataset.targetId=''" title="ייבא רשימת שמות" style="flex-shrink:0;padding:12px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:16px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:72px;">
+                <span style="font-size:1.4rem;">📋</span>
+                <span>ייבא<br>רשימה</span>
+            </button>
         </div>
         <input type="file" id="bulk-input" accept="image/*" multiple onchange="handleBulkPhotos(event)">
         <div class="bulk-list" id="bulk-list"></div>
@@ -922,6 +936,24 @@
                 <button onclick="showCQHint()" style="flex:1;padding:11px;background:#fef3c7;color:#b45309;border:none;border-radius:10px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;">💡 רמז</button>
             </div>
             <button onclick="closeCQOverlay()" style="width:100%;padding:9px;background:#f3f4f6;color:#6b7280;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">דלג</button>
+        </div>
+    </div>
+
+    <!-- NAMES LIST PICKER MODAL -->
+    <div class="settings-overlay" id="names-picker-overlay" onclick="closeNamePicker(event)">
+        <div style="background:white;border-radius:20px;padding:20px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;display:flex;flex-direction:column;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <div style="font-weight:800;font-size:1rem;">📋 בחר שם מרשימה</div>
+                <button onclick="closeNamePicker()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
+            </div>
+            <input type="text" id="names-picker-search" placeholder="חיפוש שם..." oninput="filterNamesList()"
+                style="width:100%;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:0.93rem;direction:rtl;font-family:inherit;box-sizing:border-box;margin-bottom:10px;">
+            <div class="names-picker-list" id="names-picker-list"></div>
+            <div style="display:flex;gap:8px;border-top:1px solid #f3f4f6;padding-top:12px;margin-top:4px;">
+                <button onclick="document.getElementById('names-list-file-input').click()" style="flex:1;padding:9px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:10px;font-family:inherit;font-size:0.82rem;font-weight:700;cursor:pointer;">📂 ייבא רשימה</button>
+                <button onclick="closeNamePicker()" style="flex:1;padding:9px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">סגור</button>
+            </div>
+            <input type="file" id="names-list-file-input" accept=".txt,.csv,.xlsx,.xls,text/*" style="display:none" onchange="handleNamesListFile(event)">
         </div>
     </div>
 
@@ -1417,7 +1449,8 @@ function renderBulkList() {
     bulkItems.forEach((item, idx) => {
         const div = document.createElement('div');
         div.className = 'bulk-item';
-        div.innerHTML = `<img src="${item.photo}" alt=""><input type="text" value="${item.name}" placeholder="שם התלמיד" oninput="bulkItems[${idx}].name=this.value"><button class="remove-btn" onclick="removeBulkItem(${idx})">✕</button>`;
+        const inputId = `bulk-name-input-${idx}`;
+        div.innerHTML = `<img src="${item.photo}" alt=""><input type="text" id="${inputId}" value="${item.name}" placeholder="שם התלמיד" oninput="bulkItems[${idx}].name=this.value"><button onclick="openNamePicker('${inputId}',${idx})" title="בחר שם מרשימה" style="padding:0 8px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:8px;font-size:1rem;cursor:pointer;height:36px;white-space:nowrap;line-height:1;flex-shrink:0;">📋</button><button class="remove-btn" onclick="removeBulkItem(${idx})">✕</button>`;
         list.appendChild(div);
     });
     document.getElementById('bulk-save-btn').style.display = bulkItems.length ? 'block' : 'none';
@@ -2883,6 +2916,123 @@ function openLastNameImport(cls) {
 function closeLastNameImport(e) {
     if (e && e.target !== document.getElementById('lastname-overlay')) return;
     document.getElementById('lastname-overlay').classList.remove('open');
+}
+
+// ===== NAMES LIST PICKER =====
+let importedNames = JSON.parse(localStorage.getItem('importedNames') || '[]');
+let _namePickerTargetId = null;
+let _namePickerBulkIdx = null;
+
+function openNamePicker(inputId, bulkIdx) {
+    _namePickerTargetId = inputId;
+    _namePickerBulkIdx = (bulkIdx !== undefined) ? bulkIdx : null;
+    document.getElementById('names-picker-search').value = '';
+    renderNamesPickerList('');
+    document.getElementById('names-picker-overlay').classList.add('open');
+    setTimeout(() => document.getElementById('names-picker-search').focus(), 100);
+}
+function closeNamePicker(e) {
+    if (e && e.target !== document.getElementById('names-picker-overlay')) return;
+    document.getElementById('names-picker-overlay').classList.remove('open');
+}
+function filterNamesList() {
+    const q = document.getElementById('names-picker-search').value;
+    renderNamesPickerList(q);
+}
+function renderNamesPickerList(query) {
+    const listEl = document.getElementById('names-picker-list');
+    const q = query.trim();
+    const filtered = q
+        ? importedNames.filter(n => n.includes(q))
+        : importedNames;
+    if (!filtered.length) {
+        listEl.innerHTML = `<div class="names-picker-empty">${importedNames.length ? 'לא נמצאו תוצאות' : 'אין רשימת שמות. לחץ "ייבא רשימה" להעלאת קובץ.'}</div>`;
+        return;
+    }
+    listEl.innerHTML = '';
+    filtered.forEach(name => {
+        const el = document.createElement('div');
+        el.className = 'names-picker-item';
+        el.textContent = name;
+        el.onclick = () => selectPickedName(name);
+        listEl.appendChild(el);
+    });
+}
+function selectPickedName(name) {
+    if (_namePickerTargetId) {
+        const inp = document.getElementById(_namePickerTargetId);
+        if (inp) {
+            inp.value = name;
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (_namePickerBulkIdx !== null && bulkItems[_namePickerBulkIdx] !== undefined) {
+            bulkItems[_namePickerBulkIdx].name = name;
+        }
+    }
+    document.getElementById('names-picker-overlay').classList.remove('open');
+}
+function handleNamesListFile(e) {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'xlsx' || ext === 'xls') {
+        loadSheetJS().then(XLSX => {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const wb = XLSX.read(ev.target.result, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                const names = [];
+                rows.forEach(row => {
+                    row.forEach(cell => {
+                        if (!cell) return;
+                        const t = String(cell).trim();
+                        if (t.length > 1 && /^[\u05D0-\u05EA\s'"\-]+$/.test(t)) names.push(t);
+                    });
+                });
+                applyImportedNames(names);
+            };
+            reader.readAsArrayBuffer(file);
+        }).catch(() => showToast('⚠️ שגיאה בטעינת קובץ Excel'));
+        return;
+    }
+    // TXT/CSV: try UTF-8 then windows-1255
+    const r1 = new FileReader();
+    r1.onload = ev => {
+        const text = ev.target.result;
+        if (/[\u05D0-\u05EA]/.test(text)) {
+            applyImportedNames(parseNamesFromText(text));
+        } else {
+            const r2 = new FileReader();
+            r2.onload = ev2 => applyImportedNames(parseNamesFromText(ev2.target.result));
+            r2.readAsText(file, 'windows-1255');
+        }
+    };
+    r1.readAsText(file, 'UTF-8');
+}
+function parseNamesFromText(text) {
+    return text.split(/[\r\n]+/)
+        .map(line => extractNameFromLine(line))
+        .filter(n => n && n.length > 1 && /[\u05D0-\u05EA]/.test(n));
+}
+function applyImportedNames(names) {
+    if (!names.length) { showToast('⚠️ לא נמצאו שמות בקובץ'); return; }
+    importedNames = names;
+    localStorage.setItem('importedNames', JSON.stringify(importedNames));
+    renderNamesPickerList(document.getElementById('names-picker-search').value);
+    document.getElementById('names-picker-overlay').classList.add('open');
+    showToast(`✅ נטענו ${names.length} שמות`);
+}
+function loadSheetJS() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        s.onload = () => resolve(window.XLSX);
+        s.onerror = reject;
+        document.head.appendChild(s);
+    });
 }
 function handleLastNameFile(e) {
     const file = e.target.files[0];
