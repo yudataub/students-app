@@ -2172,6 +2172,17 @@ function showToast(msg) {
 }
 
 // ===== INIT =====
+// Pre-load Firebase config (safe to embed — security enforced by Storage Rules)
+if (!localStorage.getItem('firebaseConfig')) {
+    localStorage.setItem('firebaseConfig', JSON.stringify({
+        apiKey: "AIzaSyAhqFMifkC_YMrTS9P68fW5n7eDudhpBN8",
+        authDomain: "name-2b45a.firebaseapp.com",
+        projectId: "name-2b45a",
+        storageBucket: "name-2b45a.firebasestorage.app",
+        messagingSenderId: "1009679057574",
+        appId: "1:1009679057574:web:bff4da18219c969fef2a67"
+    }));
+}
 renderHome();
 initFirebase();
 
