@@ -2387,6 +2387,7 @@ function _applyCloudData(data) {
 
 async function cloudSaveNow() {
     if (!_fbUser || !_fbFirestore) { showToast('⚠️ לא מחובר לענן'); return; }
+    if (students.length === 0) { showToast('⚠️ אין תלמידים — לא מעלה לענן'); return; }
     clearTimeout(_cloudSyncTimer);
     try {
         const snapshot = _getCloudSnapshot();
