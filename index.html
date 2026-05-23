@@ -663,8 +663,11 @@
             <span style="font-size:0.78rem;color:#9ca3af;font-weight:600;">או</span>
             <div style="flex:1;height:1px;background:#e5e7eb;"></div>
         </div>
-        <button onclick="openCropModal()" style="width:100%;padding:12px 16px;background:#ec4899;color:white;border:none;border-radius:12px;font-size:0.92rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px;">
+        <button onclick="openCropModal()" style="width:100%;padding:12px 16px;background:#ec4899;color:white;border:none;border-radius:12px;font-size:0.92rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;">
             <span style="font-size:1.2rem;">📸</span> בחר ילד מתמונת קבוצה
+        </button>
+        <button onclick="openGooglePhotos()" style="width:100%;padding:12px 16px;background:#fff;color:#1a73e8;border:1.5px solid #1a73e8;border-radius:12px;font-size:0.92rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px;">
+            <span style="font-size:1.2rem;">🖼️</span> בחר מ-Google Photos
         </button>
         <div class="form-group">
             <label>שם מלא</label>
@@ -1546,6 +1549,12 @@ function resizeImage(dataUrl, callback) {
     img.src = dataUrl;
 }
 function nameFromFilename(f) { return f.replace(/\.[^.]+$/, '').replace(/[_\-]+/g, ' ').trim(); }
+
+// ===== GOOGLE PHOTOS =====
+function openGooglePhotos() {
+    window.open('https://photos.google.com', '_blank');
+    showToast('📌 בחר תמונה ב-Google Photos → הורד → העלה כאן');
+}
 
 // ===== ADD STUDENT =====
 let photoData = null;
