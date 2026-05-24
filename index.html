@@ -1087,7 +1087,8 @@
             <div style="font-weight:800;font-size:1rem;margin-bottom:4px;text-align:center;">📤 שתף כיתה</div>
             <div id="share-dialog-label" style="text-align:center;color:#6b7280;font-size:0.82rem;margin-bottom:18px;"></div>
             <button onclick="doExportFile()" style="width:100%;padding:13px;background:#f0fdf4;color:#16a34a;border:1.5px solid #bbf7d0;border-radius:12px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:10px;">📁 הורד קובץ (לייבוא)</button>
-            <button onclick="doShareViewLink()" style="width:100%;padding:13px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:12px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:16px;">🔗 צור קישור צפייה</button>
+            <button onclick="doShareViewLink()" style="width:100%;padding:13px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:12px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:10px;">🔗 קישור צפייה (חד פעמי)</button>
+            <button onclick="doCreateSharedClass()" style="width:100%;padding:13px;background:#fdf4ff;color:#7c3aed;border:1.5px solid #e9d5ff;border-radius:12px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:16px;">🔄 שיתוף פעיל — שני מורים</button>
             <button onclick="closeShareDialog()" style="width:100%;padding:10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">ביטול</button>
         </div>
     </div>
@@ -1289,6 +1290,7 @@ function saveData() {
     try { localStorage.setItem('students', JSON.stringify(students)); }
     catch(e) { showToast('⚠️ אין מספיק מקום — נסה למחוק תלמידים ישנים'); }
     _scheduleCloudSync();
+    _scheduleSharedSync();
 }
 function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 function getClasses() { return [...new Set(students.map(s => s.className).filter(Boolean))].sort(); }
@@ -1438,13 +1440,16 @@ function renderHome() {
         actions.appendChild(classroomBtn);
 
         // Share button — shown for any class with students
+        const clsKey = isNone ? '' : key;
+        const isShared = classStudents.some(s => s.sharedClassId);
         const sep5 = document.createElement('div');
         sep5.className = 'class-sep';
         const shareBtn = document.createElement('button');
         shareBtn.className = 'class-action-btn';
-        shareBtn.style.cssText = 'color:#16a34a;';
-        shareBtn.innerHTML = '📤 שתף';
-        shareBtn.onclick = () => showShareDialog(isNone ? '' : key);
+        shareBtn.style.cssText = isShared ? 'color:#7c3aed;' : 'color:#16a34a;';
+        shareBtn.innerHTML = isShared ? '🔄 משותף' : '📤 שתף';
+        shareBtn.title = isShared ? 'כיתה משותפת — מסונכרנת בזמן אמת' : 'שתף כיתה';
+        shareBtn.onclick = () => showShareDialog(clsKey);
         actions.appendChild(sep5);
         actions.appendChild(shareBtn);
 
@@ -2391,6 +2396,14 @@ async function signOutUser() {
 }
 
 async function _onCloudLogin(user) {
+    // Resume real-time listeners for shared classes
+    _resumeSharedListeners();
+    // Handle pending join (if user opened ?joinclass= before being logged in)
+    const pendingJoin = sessionStorage.getItem('pendingJoinClass');
+    if (pendingJoin) {
+        sessionStorage.removeItem('pendingJoinClass');
+        setTimeout(() => joinSharedClass(pendingJoin), 500);
+    }
     try {
         const cloud = await _readCloudData(user.uid);
         if (cloud && cloud.students && cloud.students.length > 0) {
@@ -4010,6 +4023,177 @@ function showSharedClass(data) {
 function closeSharedView() {
     document.getElementById('shared-view-overlay').classList.remove('open');
 }
+
+// ===== SHARED CLASS — REAL-TIME COLLABORATIVE =====
+const _sharedListeners = {};        // classId -> unsubscribe fn
+let _applyingRemoteUpdate = false;  // prevent write-back loop
+let _sharedSyncTimer = null;
+
+function doCreateSharedClass() {
+    closeShareDialog();
+    createSharedClass(_shareDialogClassName);
+}
+
+async function createSharedClass(className) {
+    if (!_fbFirestore || !_fbUser) {
+        showToast('⚠️ יש להתחבר ל-Google כדי ליצור שיתוף פעיל');
+        return;
+    }
+    const cls = className === undefined ? '' : className;
+    const classStudents = students.filter(s => s.className === cls);
+    if (!classStudents.length) { showToast('אין תלמידים בכיתה זו'); return; }
+
+    showToast('⏳ יוצר שיתוף פעיל...');
+    try {
+        const classRef = _fbFirestore.collection('shared_classes').doc();
+        const classId = classRef.id;
+
+        await classRef.set({
+            className: cls, createdBy: _fbUser.uid,
+            members: [_fbUser.uid], createdAt: Date.now()
+        });
+
+        const batch = _fbFirestore.batch();
+        classStudents.forEach(s => {
+            batch.set(classRef.collection('students').doc(String(s.id)), { ...s, sharedClassId: classId });
+        });
+        await batch.commit();
+
+        // Mark local students as shared
+        classStudents.forEach(s => { s.sharedClassId = classId; });
+        saveData();
+        _listenSharedClass(classId);
+        renderHome();
+
+        const url = `${location.origin}${location.pathname}?joinclass=${classId}`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(() =>
+                showToast('✅ שיתוף פעיל נוצר! הקישור הועתק — שלח לחבר')
+            );
+        } else { prompt('הקישור לשיתוף פעיל:', url); }
+    } catch(e) {
+        showToast('⚠️ שגיאה — ודא שחוקי Firestore עודכנו');
+        console.error('[createSharedClass]', e);
+    }
+}
+
+function _listenSharedClass(classId) {
+    if (_sharedListeners[classId]) return;
+    const unsub = _fbFirestore.collection('shared_classes').doc(classId)
+        .collection('students')
+        .onSnapshot(snapshot => {
+            _applyingRemoteUpdate = true;
+            snapshot.docChanges().forEach(change => {
+                const data = change.doc.data();
+                if (change.type === 'added' || change.type === 'modified') {
+                    const idx = students.findIndex(s => String(s.id) === String(data.id));
+                    if (idx >= 0) Object.assign(students[idx], data);
+                    else students.push(data);
+                } else if (change.type === 'removed') {
+                    const idx = students.findIndex(s => String(s.id) === String(data.id));
+                    if (idx >= 0) students.splice(idx, 1);
+                }
+            });
+            localStorage.setItem('students', JSON.stringify(students));
+            _applyingRemoteUpdate = false;
+            renderHome();
+        });
+    _sharedListeners[classId] = unsub;
+}
+
+async function joinSharedClass(classId) {
+    if (!_fbFirestore || !_fbUser) {
+        sessionStorage.setItem('pendingJoinClass', classId);
+        showToast('⚠️ יש להתחבר ל-Google — פתח הגדרות והתחבר');
+        setTimeout(() => openSettings(), 1200);
+        return;
+    }
+    try {
+        const classRef = _fbFirestore.collection('shared_classes').doc(classId);
+        const classDoc = await classRef.get({ source: 'server' });
+        if (!classDoc.exists) { showToast('⚠️ כיתה לא נמצאה'); return; }
+
+        const data = classDoc.data();
+        const cls = data.className || '';
+        const label = cls ? `כיתה "${cls}"` : 'ללא כיתה';
+        const ok = confirm(`הצטרף ל${label}?\nכל שינוי יסונכרן בזמן אמת בין שני המורים.`);
+        if (!ok) return;
+
+        // Add member
+        const members = data.members || [];
+        if (!members.includes(_fbUser.uid)) {
+            await classRef.update({ members: [...members, _fbUser.uid] });
+        }
+
+        // Load students
+        const snap = await classRef.collection('students').get({ source: 'server' });
+        snap.forEach(doc => {
+            const s = doc.data();
+            if (!students.find(x => String(x.id) === String(s.id))) students.push(s);
+        });
+
+        saveData();
+        _listenSharedClass(classId);
+        renderHome();
+        showToast(`✅ הצטרפת ל${label}! שינויים מסונכרנים בזמן אמת 🔄`);
+    } catch(e) {
+        showToast('⚠️ שגיאה בהצטרפות לכיתה');
+        console.error('[joinSharedClass]', e);
+    }
+}
+
+function _scheduleSharedSync() {
+    if (_applyingRemoteUpdate) return;
+    clearTimeout(_sharedSyncTimer);
+    _sharedSyncTimer = setTimeout(_syncSharedStudents, 1500);
+}
+
+async function _syncSharedStudents() {
+    if (!_fbFirestore || !_fbUser) return;
+    const sharedStudents = students.filter(s => s.sharedClassId);
+    if (!sharedStudents.length) return;
+    const byClass = {};
+    sharedStudents.forEach(s => {
+        if (!byClass[s.sharedClassId]) byClass[s.sharedClassId] = [];
+        byClass[s.sharedClassId].push(s);
+    });
+    for (const [classId, list] of Object.entries(byClass)) {
+        try {
+            const classRef = _fbFirestore.collection('shared_classes').doc(classId);
+            const batch = _fbFirestore.batch();
+            list.forEach(s => batch.set(classRef.collection('students').doc(String(s.id)), s));
+            await batch.commit();
+        } catch(e) { console.error('[syncShared]', e); }
+    }
+}
+
+function _resumeSharedListeners() {
+    const ids = [...new Set(students.filter(s => s.sharedClassId).map(s => s.sharedClassId))];
+    ids.forEach(id => _listenSharedClass(id));
+}
+
+// Check ?joinclass= on load
+(function checkJoinClassParam() {
+    const classId = new URLSearchParams(location.search).get('joinclass');
+    if (!classId) return;
+    history.replaceState({}, '', location.pathname);
+    showToast('⏳ מצטרף לכיתה המשותפת...');
+    const tryJoin = (attempts) => {
+        if (!_fbFirestore) {
+            if (attempts > 40) { showToast('⚠️ Firebase לא זמין'); return; }
+            setTimeout(() => tryJoin(attempts + 1), 400);
+            return;
+        }
+        if (!_fbUser) {
+            sessionStorage.setItem('pendingJoinClass', classId);
+            showToast('⚠️ יש להתחבר ל-Google — פתח הגדרות והתחבר');
+            setTimeout(() => openSettings(), 1200);
+            return;
+        }
+        joinSharedClass(classId);
+    };
+    tryJoin(0);
+})();
 function importFromSharedView() {
     if (!_sharedViewData) return;
     const cls = _sharedViewData.className || '';
