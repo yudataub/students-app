@@ -50,6 +50,13 @@
         .class-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
         .class-name { font-weight: 700; font-size: 0.95rem; flex: 1; }
         .class-count { font-size: 0.82rem; color: #9ca3af; }
+        .missing-badge { font-size: 0.75rem; font-weight: 700; color: #b45309; background: #fef3c7; border: 1.5px solid #fde68a; border-radius: 20px; padding: 2px 9px; cursor: pointer; white-space: nowrap; }
+        .missing-badge:hover { background: #fde68a; }
+        .missing-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 4px; border-bottom: 1px solid #f3f4f6; }
+        .missing-item:last-child { border-bottom: none; }
+        .missing-item-name { font-size: 0.95rem; font-weight: 600; flex: 1; }
+        .missing-add-btn { padding: 5px 12px; background: #f0fdf4; color: #16a34a; border: 1.5px solid #bbf7d0; border-radius: 8px; font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .missing-add-btn:hover { background: #dcfce7; }
         .class-rename-btn {
             background: none; border: none; cursor: pointer; font-size: 0.85rem;
             color: #d1d5db; padding: 2px 6px; border-radius: 6px;
@@ -1159,6 +1166,20 @@
         </div>
     </div>
 
+    <!-- MISSING STUDENTS OVERLAY -->
+    <div class="settings-overlay" id="missing-overlay" onclick="closeMissingOverlay(event)">
+        <div style="background:white;border-radius:20px;padding:20px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <div style="font-weight:800;font-size:1rem;">👤 חסרי תמונה</div>
+                <button onclick="closeMissingOverlay()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
+            </div>
+            <div id="missing-class-label" style="font-size:0.82rem;color:#6b7280;margin-bottom:10px;"></div>
+            <div id="missing-list" style="overflow-y:auto;flex:1;"></div>
+            <button onclick="addAllMissing()" id="missing-add-all-btn" style="margin-top:12px;width:100%;padding:11px;background:#f59e0b;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;font-weight:700;cursor:pointer;display:none;">➕ הוסף את כולם ללא תמונה</button>
+            <button onclick="closeMissingOverlay()" style="margin-top:8px;width:100%;padding:10px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">סגור</button>
+        </div>
+    </div>
+
     <!-- LAST NAME IMPORT MODAL -->
     <div class="settings-overlay" id="lastname-overlay" onclick="closeLastNameImport(event)">
         <div class="settings-box" style="max-width:400px;">
@@ -1351,6 +1372,77 @@ function goBack() {
     showView(prev);
 }
 
+// ===== MISSING STUDENTS =====
+const PLACEHOLDER_PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#e5e7eb"/><circle cx="60" cy="44" r="24" fill="#9ca3af"/><ellipse cx="60" cy="104" rx="42" ry="30" fill="#9ca3af"/></svg>');
+let _missingClass = '';
+
+function getMissingNames(className) {
+    const imported = importedNamesMap[className] || [];
+    if (!imported.length) return [];
+    const existing = new Set(students.filter(s => s.className === className).map(s => s.name));
+    return imported.filter(n => !existing.has(n));
+}
+
+function showMissingOverlay(className) {
+    _missingClass = className;
+    const missing = getMissingNames(className);
+    document.getElementById('missing-class-label').textContent = `כיתה: ${className} — ${missing.length} שמות ברשימה ללא תמונה`;
+    const listEl = document.getElementById('missing-list');
+    listEl.innerHTML = '';
+    if (missing.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;color:#9ca3af;padding:20px;">כל התלמידים ברשימה כבר הוזנו ✅</div>';
+    } else {
+        missing.forEach(name => {
+            const row = document.createElement('div');
+            row.className = 'missing-item';
+            row.id = 'missing-row-' + name;
+            const nameEl = document.createElement('div');
+            nameEl.className = 'missing-item-name';
+            nameEl.textContent = name;
+            const addBtn = document.createElement('button');
+            addBtn.className = 'missing-add-btn';
+            addBtn.textContent = '➕ הוסף';
+            addBtn.onclick = () => addMissingStudent(name);
+            row.appendChild(nameEl);
+            row.appendChild(addBtn);
+            listEl.appendChild(row);
+        });
+    }
+    document.getElementById('missing-add-all-btn').style.display = missing.length > 1 ? '' : 'none';
+    document.getElementById('missing-overlay').classList.add('open');
+}
+
+function addMissingStudent(name) {
+    students.push({ id: generateId(), name, photo: PLACEHOLDER_PHOTO, className: _missingClass, association: '', correct: 0, wrong: 0 });
+    saveData();
+    showToast(`✅ ${name} נוסף`);
+    // Remove the row from the list
+    const row = document.getElementById('missing-row-' + name);
+    if (row) row.remove();
+    const remaining = document.getElementById('missing-list').querySelectorAll('.missing-item').length;
+    if (remaining === 0) {
+        document.getElementById('missing-list').innerHTML = '<div style="text-align:center;color:#9ca3af;padding:20px;">כל התלמידים ברשימה כבר הוזנו ✅</div>';
+    }
+    document.getElementById('missing-add-all-btn').style.display = remaining > 1 ? '' : 'none';
+    renderHome();
+}
+
+function addAllMissing() {
+    const missing = getMissingNames(_missingClass);
+    missing.forEach(name => {
+        students.push({ id: generateId(), name, photo: PLACEHOLDER_PHOTO, className: _missingClass, association: '', correct: 0, wrong: 0 });
+    });
+    saveData();
+    showToast(`✅ נוספו ${missing.length} תלמידים`);
+    showMissingOverlay(_missingClass);
+    renderHome();
+}
+
+function closeMissingOverlay(e) {
+    if (e && e.target !== document.getElementById('missing-overlay')) return;
+    document.getElementById('missing-overlay').classList.remove('open');
+}
+
 // ===== HOME =====
 function renderHome() {
     const classes = getClasses();
@@ -1400,6 +1492,19 @@ function renderHome() {
         header.appendChild(dot);
         header.appendChild(nameEl);
         header.appendChild(countEl);
+
+        // Missing names badge
+        if (!isNone) {
+            const missingNames = getMissingNames(key);
+            if (missingNames.length > 0) {
+                const badge = document.createElement('button');
+                badge.className = 'missing-badge';
+                badge.textContent = `👤 ${missingNames.length} חסרים`;
+                badge.title = 'תלמידים ברשימה ללא תמונה';
+                badge.onclick = (e) => { e.stopPropagation(); showMissingOverlay(key); };
+                header.appendChild(badge);
+            }
+        }
 
         // Rename + clear buttons (only for real classes, not uncategorized)
         if (!isNone) {
