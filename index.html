@@ -4039,9 +4039,20 @@ function importFromSharedView() {
         }
         _fbFirestore.collection('shares').doc(shareId).get({ source: 'server' }).then(doc => {
             if (!doc.exists) { showToast('⚠️ קישור לא נמצא או פג תוקפו'); return; }
-            showSharedClass(doc.data());
+            const data = doc.data();
+            const cls = data.className || '';
+            const label = cls ? `כיתה "${cls}"` : 'ללא כיתה';
+            const preview = data.students.slice(0, 5).map(s => s.name).join(', ') + (data.students.length > 5 ? '...' : '');
+            const ok = confirm(`קיבלת ${label} עם ${data.students.length} תלמידים:\n${preview}\n\nלייבא ולהתחיל?`);
+            if (!ok) return;
+            data.students.forEach(s => {
+                students.push({ ...s, id: Date.now() + Math.random(), className: cls });
+            });
+            saveData();
+            renderHome();
+            showToast(`✅ ${label} מוכנה! תוכל לשחק בחידון, גלריה והכל`);
         }).catch(e => {
-            showToast('⚠️ שגיאה בטעינת הכיתה — ודא שחוקי Firestore מאפשרים קריאה ל-shares');
+            showToast('⚠️ שגיאה בטעינת הכיתה');
             console.error('[viewShare]', e);
         });
     };
