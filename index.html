@@ -1376,11 +1376,16 @@ function goBack() {
 const PLACEHOLDER_PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#e5e7eb"/><circle cx="60" cy="44" r="24" fill="#9ca3af"/><ellipse cx="60" cy="104" rx="42" ry="30" fill="#9ca3af"/></svg>');
 let _missingClass = '';
 
+function _normName(n) { return (n || '').trim().replace(/\s+/g, ' '); }
 function getMissingNames(className) {
-    const imported = importedNamesMap[className] || [];
+    const imported = (importedNamesMap[className] || []).length > 0
+        ? importedNamesMap[className]
+        : (importedNamesMap[''] || []);
     if (!imported.length) return [];
-    const existing = new Set(students.filter(s => s.className === className).map(s => s.name));
-    return imported.filter(n => !existing.has(n));
+    const existing = new Set(
+        students.filter(s => s.className === className).map(s => _normName(s.name))
+    );
+    return imported.filter(n => !existing.has(_normName(n)));
 }
 
 function showMissingOverlay(className) {
