@@ -4529,10 +4529,38 @@ function renderNamesPickerList(query) {
     filtered.forEach(name => {
         const el = document.createElement('div');
         el.className = 'names-picker-item';
-        el.textContent = name;
-        el.onclick = () => selectPickedName(name);
+        el.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:6px;';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = name;
+        nameSpan.style.cssText = 'flex:1;cursor:pointer;';
+        nameSpan.onclick = () => selectPickedName(name);
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '✕';
+        delBtn.title = 'מחק שם זה';
+        delBtn.style.cssText = 'background:none;border:none;color:#d1d5db;font-size:0.85rem;cursor:pointer;padding:2px 4px;border-radius:4px;flex-shrink:0;line-height:1;';
+        delBtn.onmouseover = () => delBtn.style.color = '#e11d48';
+        delBtn.onmouseout = () => delBtn.style.color = '#d1d5db';
+        delBtn.onclick = (e) => {
+            e.stopPropagation();
+            deleteSingleName(name, filterClass);
+        };
+        el.appendChild(nameSpan);
+        el.appendChild(delBtn);
         listEl.appendChild(el);
     });
+}
+function deleteSingleName(name, filterClass) {
+    if (filterClass === '__all__' || filterClass === '__new__') {
+        Object.keys(importedNamesMap).forEach(cls => {
+            importedNamesMap[cls] = importedNamesMap[cls].filter(n => n !== name);
+        });
+    } else {
+        if (importedNamesMap[filterClass]) {
+            importedNamesMap[filterClass] = importedNamesMap[filterClass].filter(n => n !== name);
+        }
+    }
+    localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
+    renderNamesPickerList(document.getElementById('names-picker-search').value);
 }
 function selectPickedName(name) {
     if (_namePickerTargetId) {
