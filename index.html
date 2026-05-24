@@ -1861,45 +1861,41 @@ function startEditName() {
     // Hide edit button while editing
     document.querySelector('.edit-name-btn').style.display = 'none';
 
-    // Build suggestions list: prefer same class, fallback to all students
-    const sameClass = students.filter(x => x.className && x.className === s.className && x.id !== s.id);
-    const pool = sameClass.length > 0
-        ? sameClass
-        : students.filter(x => x.id !== s.id);
+    // Build suggestions from imported names list only (class-specific or generic)
+    const pool = (importedNamesMap[s.className] || []).length > 0
+        ? importedNamesMap[s.className]
+        : (importedNamesMap[''] || []);
 
     const suggestionsEl = document.createElement('div');
     suggestionsEl.className = 'name-suggestions';
 
     function renderSuggestions(filter) {
         const q = filter.trim().toLowerCase();
-        const filtered = q ? pool.filter(x => x.name.toLowerCase().includes(q)) : pool;
+        const filtered = q ? pool.filter(n => n.toLowerCase().includes(q)) : pool;
         suggestionsEl.innerHTML = '';
+        filtered.forEach(name => {
+            const item = document.createElement('div');
+            item.className = 'name-suggestion-item';
+            item.textContent = name;
+            item.onmousedown = (e) => {
+                e.preventDefault();
+                input.value = name;
+                save();
+            };
+            suggestionsEl.appendChild(item);
+        });
         if (filtered.length === 0) {
             const empty = document.createElement('div');
             empty.style.cssText = 'padding:10px 14px;color:#9ca3af;font-size:0.88rem;text-align:center;';
-            empty.textContent = 'לא נמצאו תלמידים';
+            empty.textContent = q ? 'לא נמצאו שמות' : 'לא יובאה רשימת שמות לכיתה זו';
             suggestionsEl.appendChild(empty);
-        } else {
-            filtered.forEach(c => {
-                const item = document.createElement('div');
-                item.className = 'name-suggestion-item';
-                item.textContent = c.name;
-                item.onmousedown = (e) => {
-                    e.preventDefault(); // prevent blur before click
-                    input.value = c.name;
-                    save();
-                };
-                suggestionsEl.appendChild(item);
-            });
         }
         suggestionsEl.style.display = '';
     }
 
-    if (pool.length > 0) {
-        renderSuggestions('');
-        row.insertAdjacentElement('afterend', suggestionsEl);
-        input.addEventListener('input', () => renderSuggestions(input.value));
-    }
+    renderSuggestions('');
+    row.insertAdjacentElement('afterend', suggestionsEl);
+    input.addEventListener('input', () => renderSuggestions(input.value));
 
     const save = () => {
         suggestionsEl.remove();
