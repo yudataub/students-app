@@ -1027,6 +1027,24 @@
         <input type="file" id="group-photo-input" accept="image/*" style="display:none" onchange="loadGroupPhoto(event)">
     </div>
 
+    <!-- SINGLE PHOTO CROP/POSITION MODAL -->
+    <div class="settings-overlay" id="sc-overlay" onclick="closeSC(event)">
+        <div style="background:white;border-radius:20px;overflow:hidden;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="padding:14px 18px 6px;display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-weight:800;font-size:1rem;">✂️ מיקום וגזירה</div>
+                <button onclick="closeSC()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
+            </div>
+            <div style="font-size:0.75rem;color:#9ca3af;text-align:center;padding-bottom:8px;">גרור להזזה · גלגלת העכבר / צביטה לזום</div>
+            <canvas id="sc-canvas" style="display:block;width:100%;cursor:grab;"
+                onmousedown="scDragStart(event)" onmousemove="scDragMove(event)"
+                onmouseup="scDragEnd()" onmouseleave="scDragEnd()"></canvas>
+            <div style="padding:12px 16px;display:flex;gap:8px;">
+                <button onclick="confirmSC()" style="flex:1;padding:11px;background:#10b981;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;">✂️ גזור ושמור</button>
+                <button onclick="closeSC()" style="flex:1;padding:11px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">ביטול</button>
+            </div>
+        </div>
+    </div>
+
     <!-- FACE DETECTION NAMING OVERLAY -->
     <div class="settings-overlay" id="face-naming-overlay" onclick="closeFaceNaming(event)">
         <div style="background:white;border-radius:20px;padding:0;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;">
@@ -1597,23 +1615,135 @@ function openGooglePhotos() {
     showToast('📌 בחר תמונה ב-Google Photos → הורד → העלה כאן');
 }
 
+// ===== SINGLE PHOTO CROP =====
+const SC_SIZE = 320, SC_CROP = 260, SC_M = (SC_SIZE - SC_CROP) / 2;
+let _sc = { img: null, scale: 1, ox: 0, oy: 0, drag: false, lx: 0, ly: 0, cb: null, ld: 0 };
+
+function openSC(dataUrl, callback) {
+    _sc.cb = callback;
+    const img = new Image();
+    img.onload = () => {
+        _sc.img = img;
+        _sc.scale = Math.max(SC_CROP / img.width, SC_CROP / img.height) * 1.05;
+        _sc.ox = SC_M + (SC_CROP - img.width * _sc.scale) / 2;
+        _sc.oy = SC_M + (SC_CROP - img.height * _sc.scale) / 2;
+        const canvas = document.getElementById('sc-canvas');
+        canvas.width = canvas.height = SC_SIZE;
+        if (!canvas._scInit) {
+            canvas.addEventListener('wheel', scWheel, { passive: false });
+            canvas.addEventListener('touchstart', scTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', scTouchMove, { passive: false });
+            canvas.addEventListener('touchend', () => { _sc.drag = false; });
+            canvas._scInit = true;
+        }
+        drawSC();
+    };
+    img.src = dataUrl;
+    document.getElementById('sc-overlay').classList.add('open');
+}
+
+function drawSC() {
+    const canvas = document.getElementById('sc-canvas');
+    const ctx = canvas.getContext('2d');
+    const m = SC_M, s = SC_CROP, n = SC_SIZE;
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(0, 0, n, n);
+    ctx.drawImage(_sc.img, _sc.ox, _sc.oy, _sc.img.width * _sc.scale, _sc.img.height * _sc.scale);
+    ctx.fillStyle = 'rgba(0,0,0,0.58)';
+    ctx.fillRect(0, 0, n, m);
+    ctx.fillRect(0, m + s, n, m);
+    ctx.fillRect(0, m, m, s);
+    ctx.fillRect(m + s, m, m, s);
+    const hl = 18;
+    ctx.strokeStyle = 'white'; ctx.lineWidth = 3;
+    [[m,m,1,0],[m,m,0,1],[m+s,m,-1,0],[m+s,m,0,1],[m,m+s,1,0],[m,m+s,0,-1],[m+s,m+s,-1,0],[m+s,m+s,0,-1]]
+        .forEach(([x,y,dx,dy]) => { ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+dx*hl,y+dy*hl); ctx.stroke(); });
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1;
+    ctx.strokeRect(m, m, s, s);
+}
+
+function confirmSC() {
+    const out = document.createElement('canvas');
+    out.width = out.height = 400;
+    out.getContext('2d').drawImage(_sc.img,
+        (SC_M - _sc.ox) / _sc.scale, (SC_M - _sc.oy) / _sc.scale,
+        SC_CROP / _sc.scale, SC_CROP / _sc.scale, 0, 0, 400, 400);
+    const result = out.toDataURL('image/jpeg', 0.82);
+    closeSC();
+    if (_sc.cb) _sc.cb(result);
+}
+
+function closeSC(e) {
+    if (e && e.target !== document.getElementById('sc-overlay')) return;
+    document.getElementById('sc-overlay').classList.remove('open');
+}
+
+function _scPt(clientX, clientY) {
+    const r = document.getElementById('sc-canvas').getBoundingClientRect();
+    const f = SC_SIZE / r.width;
+    return { x: (clientX - r.left) * f, y: (clientY - r.top) * f };
+}
+function scDragStart(e) { const p = _scPt(e.clientX, e.clientY); _sc.drag = true; _sc.lx = p.x; _sc.ly = p.y; }
+function scDragMove(e) {
+    if (!_sc.drag) return;
+    const p = _scPt(e.clientX, e.clientY);
+    _sc.ox += p.x - _sc.lx; _sc.oy += p.y - _sc.ly;
+    _sc.lx = p.x; _sc.ly = p.y;
+    drawSC();
+}
+function scDragEnd() { _sc.drag = false; }
+function scWheel(e) {
+    e.preventDefault();
+    const f = e.deltaY < 0 ? 1.1 : 0.91;
+    const cx = SC_SIZE / 2, cy = SC_SIZE / 2;
+    _sc.ox = cx + (_sc.ox - cx) * f; _sc.oy = cy + (_sc.oy - cy) * f;
+    _sc.scale *= f;
+    drawSC();
+}
+function scTouchStart(e) {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+        const p = _scPt(e.touches[0].clientX, e.touches[0].clientY);
+        _sc.drag = true; _sc.lx = p.x; _sc.ly = p.y;
+    } else if (e.touches.length === 2) {
+        _sc.drag = false;
+        _sc.ld = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    }
+}
+function scTouchMove(e) {
+    e.preventDefault();
+    if (e.touches.length === 1 && _sc.drag) {
+        const p = _scPt(e.touches[0].clientX, e.touches[0].clientY);
+        _sc.ox += p.x - _sc.lx; _sc.oy += p.y - _sc.ly;
+        _sc.lx = p.x; _sc.ly = p.y;
+        drawSC();
+    } else if (e.touches.length === 2) {
+        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        const fac = d / _sc.ld;
+        const cx = SC_SIZE / 2, cy = SC_SIZE / 2;
+        _sc.ox = cx + (_sc.ox - cx) * fac; _sc.oy = cy + (_sc.oy - cy) * fac;
+        _sc.scale *= fac; _sc.ld = d;
+        drawSC();
+    }
+}
+
 // ===== ADD STUDENT =====
 let photoData = null;
 function handlePhoto(e) {
     const file = e.target.files[0];
     if (!file) return;
+    const nameInput = document.getElementById('input-name');
+    if (!nameInput.value) nameInput.value = nameFromFilename(file.name);
     const reader = new FileReader();
     reader.onload = ev => {
-        resizeImage(ev.target.result, resized => {
-            photoData = resized;
-            document.getElementById('photo-preview').src = resized;
+        openSC(ev.target.result, cropped => {
+            photoData = cropped;
+            document.getElementById('photo-preview').src = cropped;
             document.getElementById('photo-preview').style.display = 'block';
             document.getElementById('photo-placeholder').style.display = 'none';
         });
     };
     reader.readAsDataURL(file);
-    const nameInput = document.getElementById('input-name');
-    if (!nameInput.value) nameInput.value = nameFromFilename(file.name);
 }
 
 function saveStudent() {
