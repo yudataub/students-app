@@ -649,6 +649,7 @@
                 <div class="label">כיתות</div>
             </div>
         </div>
+        <div id="global-missing-btn" style="display:none;margin:10px 0;"></div>
         <div class="section-title">כיתות</div>
         <div class="classes-list" id="classes-list"></div>
         <div class="section-title">פעולות</div>
@@ -1377,21 +1378,28 @@ const PLACEHOLDER_PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns
 let _missingClass = '';
 
 function _normName(n) { return (n || '').trim().replace(/\s+/g, ' '); }
+// Per-class: only uses class-specific imported list
 function getMissingNames(className) {
-    const imported = (importedNamesMap[className] || []).length > 0
-        ? importedNamesMap[className]
-        : (importedNamesMap[''] || []);
+    const imported = importedNamesMap[className] || [];
     if (!imported.length) return [];
     const existing = new Set(
         students.filter(s => s.className === className).map(s => _normName(s.name))
     );
     return imported.filter(n => !existing.has(_normName(n)));
 }
+// Global: uses generic list (key ''), compares against ALL students
+function getGlobalMissingNames() {
+    const imported = importedNamesMap[''] || [];
+    if (!imported.length) return [];
+    const existing = new Set(students.map(s => _normName(s.name)));
+    return imported.filter(n => !existing.has(_normName(n)));
+}
 
 function showMissingOverlay(className) {
     _missingClass = className;
-    const missing = getMissingNames(className);
-    document.getElementById('missing-class-label').textContent = `כיתה: ${className} — ${missing.length} שמות ברשימה ללא תמונה`;
+    const missing = className === null ? getGlobalMissingNames() : getMissingNames(className);
+    const label = className === null ? `רשימה כללית — ${missing.length} שמות ללא תמונה` : `כיתה: ${className} — ${missing.length} שמות ברשימה ללא תמונה`;
+    document.getElementById('missing-class-label').textContent = label;
     const listEl = document.getElementById('missing-list');
     listEl.innerHTML = '';
     if (missing.length === 0) {
@@ -1433,9 +1441,9 @@ function addMissingStudent(name) {
 }
 
 function addAllMissing() {
-    const missing = getMissingNames(_missingClass);
+    const missing = _missingClass === null ? getGlobalMissingNames() : getMissingNames(_missingClass);
     missing.forEach(name => {
-        students.push({ id: generateId(), name, photo: PLACEHOLDER_PHOTO, className: _missingClass, association: '', correct: 0, wrong: 0 });
+        students.push({ id: generateId(), name, photo: PLACEHOLDER_PHOTO, className: _missingClass || '', association: '', correct: 0, wrong: 0 });
     });
     saveData();
     showToast(`✅ נוספו ${missing.length} תלמידים`);
@@ -1453,6 +1461,21 @@ function renderHome() {
     const classes = getClasses();
     document.getElementById('stat-students').textContent = students.length;
     document.getElementById('stat-classes').textContent  = classes.length;
+
+    // Global missing badge (for generic imported list)
+    const globalMissingEl = document.getElementById('global-missing-btn');
+    const globalMissing = getGlobalMissingNames();
+    if (globalMissing.length > 0) {
+        globalMissingEl.style.display = '';
+        globalMissingEl.innerHTML = '';
+        const btn = document.createElement('button');
+        btn.style.cssText = 'width:100%;padding:10px 16px;background:#fef3c7;color:#b45309;border:1.5px solid #fde68a;border-radius:12px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;text-align:center;';
+        btn.textContent = `👤 ${globalMissing.length} שמות ברשימה עדיין ללא תמונה`;
+        btn.onclick = () => showMissingOverlay(null);
+        globalMissingEl.appendChild(btn);
+    } else {
+        globalMissingEl.style.display = 'none';
+    }
 
     const list = document.getElementById('classes-list');
     list.innerHTML = '';
