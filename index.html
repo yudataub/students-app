@@ -1441,7 +1441,7 @@ function renderHome() {
 
         // Share button — shown for any class with students
         const clsKey = isNone ? '' : key;
-        const isShared = classStudents.some(s => s.sharedClassId);
+        const isShared = students.some(s => (isNone ? !s.className : s.className === key) && s.sharedClassId);
         const sep5 = document.createElement('div');
         sep5.className = 'class-sep';
         const shareBtn = document.createElement('button');
