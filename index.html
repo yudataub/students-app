@@ -1570,6 +1570,14 @@ function renderHome() {
             rebuildBtn.style.color = '#7c3aed';
             rebuildBtn.onclick = (e) => { e.stopPropagation(); resetAndRebuildClass(key); };
             header.appendChild(rebuildBtn);
+
+            const clearSeatingBtn = document.createElement('button');
+            clearSeatingBtn.className = 'class-clear-btn';
+            clearSeatingBtn.textContent = '🏗️';
+            clearSeatingBtn.title = 'אפס מבנה כיתה — מחק רק את סידור המושבים, התלמידים נשארים';
+            clearSeatingBtn.style.color = '#0369a1';
+            clearSeatingBtn.onclick = (e) => { e.stopPropagation(); clearClassSeating(key); };
+            header.appendChild(clearSeatingBtn);
         }
 
         card.appendChild(header);
@@ -2540,6 +2548,14 @@ function rquizNext() {
 }
 
 // ===== CLEAR CLASS =====
+function clearClassSeating(className) {
+    if (!confirm(`לאפס את מבנה הכיתה של "${className}"?\nהתלמידים יישארו — רק הסידור יימחק.`)) return;
+    const key = 'seating_' + className;
+    localStorage.removeItem(key);
+    showToast(`🏗️ מבנה כיתה "${className}" אופס`);
+    renderHome();
+}
+
 function clearClass(className) {
     const count = students.filter(s => s.className === className).length;
     if (!confirm(`למחוק את כל ${count} התלמידים בכיתה "${className}"?\nפעולה זו אינה ניתנת לביטול.`)) return;
