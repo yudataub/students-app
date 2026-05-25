@@ -768,7 +768,14 @@
 
     <!-- STUDENT DETAIL -->
     <div id="view-detail" class="view">
-        <img id="detail-photo" class="student-detail-photo" alt="">
+        <div id="detail-photo-wrap" style="position:relative;display:inline-block;width:100%;margin-bottom:14px;">
+            <img id="detail-photo" class="student-detail-photo" style="margin-bottom:0;" alt="">
+            <div id="detail-photo-add-hint" style="display:none;position:absolute;inset:0;border-radius:14px;background:rgba(0,0,0,0.35);cursor:pointer;align-items:center;justify-content:center;flex-direction:column;gap:6px;color:white;font-size:0.9rem;font-weight:700;" onclick="document.getElementById('detail-photo-input').click()">
+                <span style="font-size:2rem;">📷</span>
+                <span>הוסף תמונה</span>
+            </div>
+        </div>
+        <input type="file" id="detail-photo-input" accept="image/*" style="display:none" onchange="handleDetailPhoto(event)">
         <div class="detail-name-row">
             <div class="detail-name" id="detail-name"></div>
             <button class="edit-name-btn" onclick="startEditName()" title="ערוך שם">✏️</button>
@@ -1868,6 +1875,25 @@ function scTouchMove(e) {
 
 // ===== ADD STUDENT =====
 let photoData = null;
+function handleDetailPhoto(e) {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+        resizeImage(ev.target.result, resized => {
+            const s = students.find(x => x.id === currentStudentId);
+            if (!s) return;
+            s.photo = resized;
+            saveData();
+            document.getElementById('detail-photo').src = resized;
+            document.getElementById('detail-photo-add-hint').style.display = 'none';
+            showToast('✅ תמונה עודכנה');
+        });
+    };
+    reader.readAsDataURL(file);
+}
+
 function handlePhoto(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -2071,6 +2097,9 @@ function showDetail(id) {
     if (!s) return;
     currentStudentId = id;
     document.getElementById('detail-photo').src = s.photo;
+    const isPlaceholder = s.photo === PLACEHOLDER_PHOTO;
+    const hint = document.getElementById('detail-photo-add-hint');
+    hint.style.display = isPlaceholder ? 'flex' : 'none';
     document.getElementById('detail-name').textContent = s.name;
     document.getElementById('detail-correct').textContent = s.correct;
     document.getElementById('detail-wrong').textContent   = s.wrong;
