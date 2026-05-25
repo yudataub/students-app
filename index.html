@@ -1562,6 +1562,14 @@ function renderHome() {
             clearBtn.title = 'מחק את כל תלמידי הכיתה';
             clearBtn.onclick = (e) => { e.stopPropagation(); clearClass(key); };
             header.appendChild(clearBtn);
+
+            const rebuildBtn = document.createElement('button');
+            rebuildBtn.className = 'class-clear-btn';
+            rebuildBtn.textContent = '🔄';
+            rebuildBtn.title = 'מחק וצור מחדש — מחק את כל התלמידים ועבור להעלאה חדשה';
+            rebuildBtn.style.color = '#7c3aed';
+            rebuildBtn.onclick = (e) => { e.stopPropagation(); resetAndRebuildClass(key); };
+            header.appendChild(rebuildBtn);
         }
 
         card.appendChild(header);
@@ -2539,6 +2547,20 @@ function clearClass(className) {
     saveData();
     showToast(`🗑️ כיתה "${className}" רוקנה`);
     renderHome();
+}
+
+function resetAndRebuildClass(className) {
+    const count = students.filter(s => s.className === className).length;
+    if (!confirm(`למחוק את כל ${count} התלמידים בכיתה "${className}" ולהתחיל מחדש?\nפעולה זו אינה ניתנת לביטול.`)) return;
+    students = students.filter(s => s.className !== className);
+    saveData();
+    showView('bulk');
+    populateClassSelect('bulk-class');
+    const sel = document.getElementById('bulk-class');
+    sel.value = NEW_CLASS_OPT;
+    document.getElementById('bulk-new-class-wrap').style.display = 'block';
+    document.getElementById('bulk-new-class').value = className;
+    showToast(`🔄 התחל להעלות תמונות לכיתה "${className}"`);
 }
 
 // ===== EXPORT LIST =====
