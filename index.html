@@ -1378,21 +1378,27 @@ const PLACEHOLDER_PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns
 let _missingClass = '';
 
 function _normName(n) { return (n || '').trim().replace(/\s+/g, ' '); }
+// Match names flexibly: exact, substring, or any shared word
+function _namesMatch(a, b) {
+    a = _normName(a); b = _normName(b);
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.includes(b) || b.includes(a)) return true;
+    const wa = a.split(' '), wb = b.split(' ');
+    return wa.some(w => w.length > 1 && wb.includes(w));
+}
 // Per-class: only uses class-specific imported list
 function getMissingNames(className) {
     const imported = importedNamesMap[className] || [];
     if (!imported.length) return [];
-    const existing = new Set(
-        students.filter(s => s.className === className).map(s => _normName(s.name))
-    );
-    return imported.filter(n => !existing.has(_normName(n)));
+    const classStudents = students.filter(s => s.className === className);
+    return imported.filter(n => !classStudents.some(s => _namesMatch(n, s.name)));
 }
 // Global: uses generic list (key ''), compares against ALL students
 function getGlobalMissingNames() {
     const imported = importedNamesMap[''] || [];
     if (!imported.length) return [];
-    const existing = new Set(students.map(s => _normName(s.name)));
-    return imported.filter(n => !existing.has(_normName(n)));
+    return imported.filter(n => !students.some(s => _namesMatch(n, s.name)));
 }
 
 function showMissingOverlay(className) {
