@@ -1556,13 +1556,6 @@ function renderHome() {
             renameBtn.onclick = (e) => { e.stopPropagation(); renameClass(key); };
             header.appendChild(renameBtn);
 
-            const clearBtn = document.createElement('button');
-            clearBtn.className = 'class-clear-btn';
-            clearBtn.textContent = '🗑️';
-            clearBtn.title = 'מחק את כל תלמידי הכיתה';
-            clearBtn.onclick = (e) => { e.stopPropagation(); clearClass(key); };
-            header.appendChild(clearBtn);
-
             const rebuildBtn = document.createElement('button');
             rebuildBtn.className = 'class-clear-btn';
             rebuildBtn.textContent = '🔄';
