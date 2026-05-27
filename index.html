@@ -3527,6 +3527,12 @@ function renderClassroomBuilder(cont) {
         saveBtn.innerHTML = '💾 שמור סידור כיתה';
         saveBtn.onclick = saveClassroomLayout;
         cont.appendChild(saveBtn);
+
+        const dlBtn = document.createElement('button');
+        dlBtn.style.cssText = 'width:100%;padding:12px;background:#0369a1;color:white;border:none;border-radius:12px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;margin-top:8px;';
+        dlBtn.innerHTML = '🖼️ הורד תמונת כיתה';
+        dlBtn.onclick = downloadClassroomImage;
+        cont.appendChild(dlBtn);
     }
 }
 
@@ -3565,6 +3571,85 @@ function makeBuilderSeat(idx, w, photoH) {
         };
     }
     return seat;
+}
+
+function _crr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.closePath();
+}
+
+async function downloadClassroomImage() {
+    if (!classroomSeats.some(Boolean)) { showToast('⚠️ אין תלמידים מושבים'); return; }
+    showToast('⏳ מכין תמונה...');
+
+    const SW=82, PH=92, NH=20, SH=PH+NH, DG=4, CG=14, RG=10, PAD=20, TH=46, TEACH=38;
+    const W = PAD*2 + classroomCols*(SW*2+DG) + (classroomCols-1)*CG;
+    const H = PAD + TH + classroomRows*(SH+RG) + TEACH + PAD;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#dde3ee'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#1d4ed8'; ctx.fillRect(0,0,W,TH);
+    ctx.fillStyle = 'white'; ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(classroomClass || 'מבנה כיתה', W/2, TH/2);
+
+    const loadImg = src => new Promise(res => {
+        const img = new Image(); img.onload = () => res(img); img.onerror = () => res(null); img.src = src;
+    });
+    const imgs = await Promise.all(classroomSeats.map(id => {
+        if (!id) return Promise.resolve(null);
+        const s = students.find(x => x.id === id);
+        return s ? loadImg(s.photo) : Promise.resolve(null);
+    }));
+
+    for (let r = 0; r < classroomRows; r++) {
+        for (let c = 0; c < classroomCols; c++) {
+            const dx = PAD + c*(SW*2+DG+CG);
+            const dy = PAD + TH + r*(SH+RG);
+            for (let s = 0; s < 2; s++) {
+                const idx = (r*classroomCols+c)*2+s;
+                const sx = dx + s*(SW+DG);
+                const student = classroomSeats[idx] ? students.find(x => x.id === classroomSeats[idx]) : null;
+                const img = imgs[idx];
+                ctx.fillStyle = student ? 'white' : '#c8d0dc';
+                _crr(ctx, sx, dy, SW, SH, 6); ctx.fill();
+                if (student && img) {
+                    ctx.save();
+                    _crr(ctx, sx, dy, SW, PH, 6); ctx.clip();
+                    const ratio = Math.max(SW/img.naturalWidth, PH/img.naturalHeight);
+                    const dw = img.naturalWidth*ratio, dh = img.naturalHeight*ratio;
+                    ctx.drawImage(img, sx+(SW-dw)/2, dy+(PH-dh)/2, dw, dh);
+                    ctx.restore();
+                }
+                if (student) {
+                    ctx.fillStyle = '#111827'; ctx.font = 'bold 9px Arial';
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    const nm = student.name.length > 13 ? student.name.slice(0,12)+'…' : student.name;
+                    ctx.fillText(nm, sx+SW/2, dy+PH+NH/2);
+                }
+            }
+        }
+    }
+
+    const ty = H-PAD-TEACH;
+    ctx.fillStyle = '#1d4ed8'; ctx.fillRect(PAD, ty, W-PAD*2, TEACH);
+    ctx.fillStyle = 'white'; ctx.font = 'bold 15px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('המורה', W/2, ty+TEACH/2);
+
+    canvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `כיתה-${classroomClass||'מבנה'}.png`;
+        a.click();
+    });
 }
 
 function saveClassroomLayout() {
@@ -3706,6 +3791,12 @@ function renderClassroomQuiz(cont) {
     editBtn.textContent = '✏️ ערוך סידור';
     editBtn.onclick = () => { classroomMode = 'build'; classroomSelectedPoolId = null; cqSelected = null; renderClassroomView(); };
     cont.appendChild(editBtn);
+
+    const dlBtn = document.createElement('button');
+    dlBtn.style.cssText = 'width:100%;padding:12px;background:#0369a1;color:white;border:none;border-radius:12px;font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;margin-top:8px;';
+    dlBtn.innerHTML = '🖼️ הורד תמונת כיתה';
+    dlBtn.onclick = downloadClassroomImage;
+    cont.appendChild(dlBtn);
 }
 
 function makeQuizSeat(idx, w, photoH) {
