@@ -3615,7 +3615,7 @@ async function downloadClassroomImage() {
             const dy = PAD + TH + r*(SH+RG);
             for (let s = 0; s < 2; s++) {
                 const idx = (r*classroomCols+c)*2+s;
-                const sx = dx + s*(SW+DG);
+                const sx = dx + (1-s)*(SW+DG);
                 const student = classroomSeats[idx] ? students.find(x => x.id === classroomSeats[idx]) : null;
                 const img = imgs[idx];
                 ctx.fillStyle = student ? 'white' : '#c8d0dc';
