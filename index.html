@@ -4111,10 +4111,14 @@ async function exportGalleryZip(cls) {
         const JSZip = await loadJSZip();
         const zip   = new JSZip();
         const seen  = {};
+        let skipped = 0;
         filtered.forEach(s => {
             if (!s.photo) return;
-            const base64 = s.photo.split(',')[1];
+            const parts = s.photo.split(',');
+            if (parts.length < 2) return;
+            const base64 = parts[1];
             if (!base64) return;
+            try { atob(base64); } catch(e) { skipped++; return; }
             let name = (s.name.trim() || 'תלמיד').replace(/[/\\:*?"<>|]/g, '_');
             seen[name] = (seen[name] || 0) + 1;
             const filename = seen[name] > 1 ? `${name}_${seen[name]}.jpg` : `${name}.jpg`;
@@ -4128,7 +4132,8 @@ async function exportGalleryZip(cls) {
         a.href = url; a.download = `תמונות_${title}_${date}.zip`;
         a.click();
         URL.revokeObjectURL(url);
-        showToast(`✅ ${filtered.length} תמונות יוצאו!`);
+        const msg = skipped > 0 ? `✅ יוצאו! (${skipped} תמונות פגומות דולגו)` : `✅ ${filtered.length} תמונות יוצאו!`;
+        showToast(msg);
     } catch(err) {
         showToast('⚠️ שגיאה: ' + err.message);
     }
