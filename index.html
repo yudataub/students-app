@@ -1636,6 +1636,19 @@ function renderHome() {
         actions.appendChild(sep5);
         actions.appendChild(shareBtn);
 
+        if (isShared) {
+            const sep6 = document.createElement('div');
+            sep6.className = 'class-sep';
+            const xlsBtn = document.createElement('button');
+            xlsBtn.className = 'class-action-btn';
+            xlsBtn.style.cssText = 'color:#16a34a;';
+            xlsBtn.innerHTML = '📊 אקסל';
+            xlsBtn.title = 'ייצא שמות לאקסל';
+            xlsBtn.onclick = () => exportNamesToExcel(isNone ? null : key);
+            actions.appendChild(sep6);
+            actions.appendChild(xlsBtn);
+        }
+
         card.appendChild(actions);
         list.appendChild(card);
     });
@@ -5061,6 +5074,33 @@ function applyImportedNames(names) {
     const label = className || 'כל הכיתות';
     showToast(`✅ נטענו ${names.length} שמות לכיתה: ${label}`);
 }
+async function exportNamesToExcel(cls) {
+    const isNone = cls === null;
+    const filtered = students.filter(s => isNone ? !s.className : s.className === cls);
+    if (filtered.length === 0) { showToast('אין תלמידים לייצוא'); return; }
+    showToast('⏳ מכין קובץ אקסל...');
+    try {
+        const XLSX = await loadSheetJS();
+        const rows = [['שם פרטי', 'שם משפחה', 'שם מלא']];
+        filtered.forEach(s => {
+            const parts = (s.name || '').trim().split(/\s+/);
+            const first = parts[0] || '';
+            const last  = parts.slice(1).join(' ');
+            rows.push([first, last, s.name.trim()]);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{wch:16},{wch:16},{wch:24}];
+        const wb = XLSX.utils.book_new();
+        const label = isNone ? 'ללא כיתה' : (cls || 'כיתה');
+        XLSX.utils.book_append_sheet(wb, ws, label);
+        const date = new Date().toLocaleDateString('he-IL').replace(/\//g, '-');
+        XLSX.writeFile(wb, `שמות_${(label).replace(/\s/g,'_')}_${date}.xlsx`);
+        showToast(`✅ יוצאו ${filtered.length} שמות`);
+    } catch(err) {
+        showToast('⚠️ שגיאה: ' + err.message);
+    }
+}
+
 function loadSheetJS() {
     if (window.XLSX) return Promise.resolve(window.XLSX);
     return new Promise((resolve, reject) => {
