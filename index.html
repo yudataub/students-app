@@ -1341,7 +1341,26 @@ if (!localStorage.getItem('guide_seen')) { setTimeout(openGuide, 400); }
 // ===== DATA =====
 let students = JSON.parse(localStorage.getItem('students') || '[]');
 students.forEach(s => { if (s.className === undefined) s.className = ''; });
+students.forEach(s => { if (!s.behaviorLog) s.behaviorLog = []; });
 let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
+
+const DEFAULT_BEHAVIOR_TYPES = [
+    { id: 'good-hw',     emoji: '✅', label: 'הגיש שיעורי בית',   kind: 'good' },
+    { id: 'good-part',   emoji: '🙋', label: 'השתתפות פעילה',     kind: 'good' },
+    { id: 'good-help',   emoji: '🤝', label: 'עזר לחבר',           kind: 'good' },
+    { id: 'good-gear',   emoji: '📚', label: 'הביא ציוד לשיעור',   kind: 'good' },
+    { id: 'good-star',   emoji: '🌟', label: 'התנהגות למופת',      kind: 'good' },
+    { id: 'bad-noise',   emoji: '🗣️', label: 'הפריע בשיעור',       kind: 'bad'  },
+    { id: 'bad-phone',   emoji: '📵', label: 'טלפון בשיעור',       kind: 'bad'  },
+    { id: 'bad-sleep',   emoji: '😴', label: 'לא הקשיב / ישן',     kind: 'bad'  },
+    { id: 'bad-nohw',    emoji: '❌', label: 'לא הגיש שיעורי בית', kind: 'bad'  },
+    { id: 'bad-respect', emoji: '🚫', label: 'חוסר כבוד',          kind: 'bad'  },
+];
+let behaviorTypes = JSON.parse(localStorage.getItem('behaviorTypes') || 'null') || DEFAULT_BEHAVIOR_TYPES.map(t => ({ ...t }));
+function saveBehaviorTypes() { localStorage.setItem('behaviorTypes', JSON.stringify(behaviorTypes)); }
+function goodCount(s) { return (s.behaviorLog || []).filter(e => e.kind === 'good').length; }
+function badCount(s)  { return (s.behaviorLog || []).filter(e => e.kind === 'bad').length; }
+function netScore(s)  { return goodCount(s) - badCount(s); }
 
 function saveData() {
     try { localStorage.setItem('students', JSON.stringify(students)); }
