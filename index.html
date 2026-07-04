@@ -2264,6 +2264,64 @@ function showBehaviorList(cls) {
     showView('behavior', title);
 }
 
+function showBehaviorDetail(id) {
+    const s = students.find(x => x.id === id);
+    if (!s) return;
+    currentBehaviorStudentId = id;
+    document.getElementById('bd-photo').src = s.photo;
+    document.getElementById('bd-name').textContent = s.name;
+    document.getElementById('bd-good').textContent = goodCount(s);
+    document.getElementById('bd-bad').textContent = badCount(s);
+    document.getElementById('bd-log-list').style.display = 'none';
+    document.getElementById('bd-log-toggle-label').textContent = 'הצג פירוט';
+    renderBehaviorLog(s);
+    showView('behaviorDetail', `👤 ${s.name}`);
+}
+
+function toggleBehaviorLog() {
+    const listEl = document.getElementById('bd-log-list');
+    const isOpen = listEl.style.display !== 'none';
+    listEl.style.display = isOpen ? 'none' : 'block';
+    document.getElementById('bd-log-toggle-label').textContent = isOpen ? 'הצג פירוט' : 'הסתר פירוט';
+}
+
+function renderBehaviorLog(s) {
+    const listEl = document.getElementById('bd-log-list');
+    listEl.innerHTML = '';
+    const entries = [...(s.behaviorLog || [])].sort((a, b) => b.ts - a.ts);
+    if (entries.length === 0) {
+        listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div>אין רשומות עדיין</div></div>';
+        return;
+    }
+    entries.forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'missing-item';
+        const dateStr = new Date(e.ts).toLocaleDateString('he-IL');
+        const nameCell = document.createElement('div');
+        nameCell.className = 'missing-item-name';
+        nameCell.innerHTML = `${e.emoji} ${e.label} <span style="color:#9ca3af;font-weight:400;font-size:0.8rem;">— ${dateStr}</span>`;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'missing-add-btn';
+        delBtn.style.cssText = 'color:#ef4444;background:#fef2f2;border-color:#fecaca;';
+        delBtn.textContent = '🗑️';
+        delBtn.onclick = () => deleteBehaviorLogEntry(e.id);
+        row.appendChild(nameCell);
+        row.appendChild(delBtn);
+        listEl.appendChild(row);
+    });
+}
+
+function deleteBehaviorLogEntry(entryId) {
+    const s = students.find(x => x.id === currentBehaviorStudentId);
+    if (!s) return;
+    if (!confirm('למחוק את הרשומה?')) return;
+    s.behaviorLog = (s.behaviorLog || []).filter(e => e.id !== entryId);
+    saveData();
+    document.getElementById('bd-good').textContent = goodCount(s);
+    document.getElementById('bd-bad').textContent = badCount(s);
+    renderBehaviorLog(s);
+}
+
 // ===== DETAIL =====
 let currentStudentId = null;
 function showDetail(id) {
