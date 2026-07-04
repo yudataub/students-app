@@ -2322,6 +2322,39 @@ function deleteBehaviorLogEntry(entryId) {
     renderBehaviorLog(s);
 }
 
+function openAddPointPicker() {
+    const listEl = document.getElementById('add-point-list');
+    listEl.innerHTML = '';
+    ['good', 'bad'].forEach(kind => {
+        const groupLabel = document.createElement('div');
+        groupLabel.style.cssText = 'font-size:0.75rem;font-weight:700;color:#9ca3af;margin:10px 4px 6px;';
+        groupLabel.textContent = kind === 'good' ? 'נקודות טובות' : 'נקודות רעות';
+        listEl.appendChild(groupLabel);
+        behaviorTypes.filter(t => t.kind === kind).forEach(t => {
+            const btn = document.createElement('button');
+            btn.style.cssText = 'width:100%;text-align:right;padding:10px 12px;margin-bottom:6px;border-radius:10px;border:1.5px solid #e5e7eb;background:white;cursor:pointer;font-family:inherit;font-size:0.92rem;display:flex;align-items:center;gap:10px;';
+            btn.innerHTML = `<span style="font-size:1.2rem;">${t.emoji}</span><span>${t.label}</span>`;
+            btn.onclick = () => addBehaviorPoint(t.id);
+            listEl.appendChild(btn);
+        });
+    });
+    document.getElementById('add-point-overlay').classList.add('open');
+}
+function closeAddPointPicker() {
+    document.getElementById('add-point-overlay').classList.remove('open');
+}
+function addBehaviorPoint(typeId) {
+    const s = students.find(x => x.id === currentBehaviorStudentId);
+    const t = behaviorTypes.find(x => x.id === typeId);
+    if (!s || !t) return;
+    if (!s.behaviorLog) s.behaviorLog = [];
+    s.behaviorLog.push({ id: generateId(), typeId: t.id, emoji: t.emoji, label: t.label, kind: t.kind, ts: Date.now() });
+    saveData();
+    closeAddPointPicker();
+    showBehaviorDetail(s.id);
+    showToast(`${t.emoji} נקודה נוספה`);
+}
+
 // ===== DETAIL =====
 let currentStudentId = null;
 function showDetail(id) {
