@@ -1446,7 +1446,7 @@ let navStack = ['home'];
 function showView(name, title) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('view-' + name).classList.add('active');
-    const titles = { home:'🎓 זוכר שמות', add:'➕ הוסף תלמיד', bulk:'📁 העלאת קבוצה', gallery:'📋 תלמידים', detail:'👤 פרופיל', quiz:'📝 מבחן', rquiz:'🔍 מצא בתמונה', mquiz:'✍️ מבחן זיכרון', summary:'📊 תוצאות', classroom:'🏫 סידור כיתה' };
+    const titles = { home:'🎓 זוכר שמות', add:'➕ הוסף תלמיד', bulk:'📁 העלאת קבוצה', gallery:'📋 תלמידים', detail:'👤 פרופיל', quiz:'📝 מבחן', rquiz:'🔍 מצא בתמונה', mquiz:'✍️ מבחן זיכרון', summary:'📊 תוצאות', classroom:'🏫 סידור כיתה', behavior:'🏆 ניקוד התנהגות', behaviorDetail:'👤 ניקוד תלמיד' };
     document.getElementById('header-title').textContent = title || titles[name] || '';
     const notHome = name !== 'home';
     document.getElementById('back-btn').style.display = notHome ? 'block' : 'none';
@@ -2192,6 +2192,76 @@ function makeStudentCard(s) {
     card.innerHTML = `${emojiBadge}<img src="${s.photo}" alt="${s.name}"><div class="card-name">${s.name}</div><div class="card-stats">${pct}</div>`;
     card.onclick = () => showDetail(s.id);
     return card;
+}
+
+// ===== BEHAVIOR POINTS =====
+let currentBehaviorClass;      // undefined = all, null = no class, string = specific class name
+let behaviorSortMode = 'name'; // 'name' | 'score'
+let currentBehaviorStudentId = null;
+
+function sortBehaviorStudents(arr) {
+    const byFirstName = (a, b) => a.name.trim().split(/\s+/)[0].localeCompare(b.name.trim().split(/\s+/)[0], 'he');
+    if (behaviorSortMode === 'score') {
+        return [...arr].sort((a, b) => (netScore(b) - netScore(a)) || byFirstName(a, b));
+    }
+    return [...arr].sort(byFirstName);
+}
+
+function makeBehaviorCard(s) {
+    const card = document.createElement('div');
+    card.className = 'student-card';
+    card.innerHTML = `<img src="${s.photo}" alt="${s.name}"><div class="card-name">${s.name}</div><div class="card-stats">✅ ${goodCount(s)}　🚩 ${badCount(s)}</div>`;
+    card.onclick = () => showBehaviorDetail(s.id);
+    return card;
+}
+
+function showBehaviorList(cls) {
+    currentBehaviorClass = cls;
+    const isAll  = cls === undefined;
+    const isNone = cls === null;
+    const filtered = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === cls);
+    const title  = isAll ? '🏆 ניקוד — כל התלמידים' : isNone ? '🏆 ניקוד — ללא כיתה' : `🏆 ניקוד — ${cls}`;
+
+    const cont = document.getElementById('behavior-content');
+    cont.innerHTML = '';
+
+    const toolbar = document.createElement('div');
+    toolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;';
+    const editBtn = document.createElement('button');
+    editBtn.style.cssText = 'background:#6b7280;color:white;padding:10px 12px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:0.82rem;font-weight:700;flex:1;';
+    editBtn.innerHTML = '⚙️ ערוך רשימת התנהגויות';
+    editBtn.onclick = () => openBehaviorTypesEditor();
+    toolbar.appendChild(editBtn);
+    cont.appendChild(toolbar);
+
+    const sortBar = document.createElement('div');
+    sortBar.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:12px;';
+    const sortLabel = document.createElement('span');
+    sortLabel.style.cssText = 'font-size:0.75rem;color:#9ca3af;font-weight:700;flex-shrink:0;';
+    sortLabel.textContent = 'מיון:';
+    sortBar.appendChild(sortLabel);
+    [['name', 'א-ב'], ['score', 'לפי ניקוד']].forEach(([mode, label]) => {
+        const btn = document.createElement('button');
+        const active = behaviorSortMode === mode;
+        btn.style.cssText = `padding:5px 10px;border-radius:8px;border:1.5px solid ${active ? '#3b82f6' : '#e5e7eb'};background:${active ? '#eff6ff' : 'white'};color:${active ? '#1d4ed8' : '#6b7280'};font-size:0.78rem;font-weight:${active ? '700' : '500'};cursor:pointer;font-family:inherit;`;
+        btn.textContent = label;
+        btn.onclick = () => { behaviorSortMode = mode; showBehaviorList(cls); };
+        sortBar.appendChild(btn);
+    });
+    cont.appendChild(sortBar);
+
+    if (filtered.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.innerHTML = '<div class="empty-icon">🏆</div><div>אין תלמידים בקטגוריה זו</div>';
+        cont.appendChild(emptyDiv);
+    } else {
+        const grid = document.createElement('div');
+        grid.className = 'gallery-grid';
+        sortBehaviorStudents(filtered).forEach(s => grid.appendChild(makeBehaviorCard(s)));
+        cont.appendChild(grid);
+    }
+    showView('behavior', title);
 }
 
 // ===== DETAIL =====
