@@ -767,6 +767,34 @@
         <div id="gallery-content"></div>
     </div>
 
+    <!-- BEHAVIOR LIST -->
+    <div id="view-behavior" class="view">
+        <div id="behavior-content"></div>
+    </div>
+
+    <!-- BEHAVIOR DETAIL -->
+    <div id="view-behaviorDetail" class="view">
+        <img id="bd-photo" class="student-detail-photo" alt="">
+        <div class="detail-name" id="bd-name" style="margin-bottom:14px;"></div>
+        <div class="stats-row">
+            <div class="stat-box correct">
+                <div class="stat-num" id="bd-good">0</div>
+                <div class="stat-label">✅ נקודות טובות</div>
+            </div>
+            <div class="stat-box wrong">
+                <div class="stat-num" id="bd-bad">0</div>
+                <div class="stat-label">🚩 נקודות רעות</div>
+            </div>
+        </div>
+        <button class="menu-btn btn-add" style="margin-bottom:10px;width:100%;" onclick="openAddPointPicker()">
+            <span class="icon">➕</span> הוסף נקודה
+        </button>
+        <button class="menu-btn btn-gallery" style="margin-bottom:14px;width:100%;" onclick="toggleBehaviorLog()">
+            <span class="icon">📋</span> <span id="bd-log-toggle-label">הצג פירוט</span>
+        </button>
+        <div id="bd-log-list" style="display:none;"></div>
+    </div>
+
     <!-- STUDENT DETAIL -->
     <div id="view-detail" class="view">
         <div id="detail-photo-wrap" style="position:relative;display:inline-block;width:100%;margin-bottom:14px;cursor:pointer;" onclick="document.getElementById('detail-photo-input').click()">
@@ -1183,6 +1211,43 @@
             <div id="missing-list" style="overflow-y:auto;flex:1;"></div>
             <button onclick="addAllMissing()" id="missing-add-all-btn" style="margin-top:12px;width:100%;padding:11px;background:#f59e0b;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;font-weight:700;cursor:pointer;display:none;">➕ הוסף את כולם ללא תמונה</button>
             <button onclick="closeMissingOverlay()" style="margin-top:8px;width:100%;padding:10px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;cursor:pointer;">סגור</button>
+        </div>
+    </div>
+
+    <!-- ADD BEHAVIOR POINT -->
+    <div class="settings-overlay" id="add-point-overlay" onclick="if(event.target===this)closeAddPointPicker()">
+        <div style="background:white;border-radius:20px;padding:20px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <div style="font-weight:800;font-size:1rem;">➕ הוסף נקודה</div>
+                <button onclick="closeAddPointPicker()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
+            </div>
+            <div id="add-point-list" style="overflow-y:auto;flex:1;"></div>
+        </div>
+    </div>
+
+    <!-- MANAGE BEHAVIOR TYPES -->
+    <div class="settings-overlay" id="behavior-types-overlay" onclick="if(event.target===this)closeBehaviorTypesEditor()">
+        <div style="background:white;border-radius:20px;padding:20px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <div style="font-weight:800;font-size:1rem;">⚙️ עריכת רשימת התנהגויות</div>
+                <button onclick="closeBehaviorTypesEditor()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
+            </div>
+            <div id="behavior-types-list" style="overflow-y:auto;flex:1;"></div>
+            <div style="border-top:1px solid #f3f4f6;margin-top:12px;padding-top:12px;">
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <input type="text" id="bt-new-emoji" placeholder="😀" maxlength="4" style="width:56px;text-align:center;font-size:1.3rem;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;box-sizing:border-box;">
+                    <input type="text" id="bt-new-label" placeholder="תיאור ההתנהגות..." style="flex:1;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;font-size:0.9rem;direction:rtl;box-sizing:border-box;">
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:1.5px solid #bbf7d0;border-radius:8px;cursor:pointer;background:#f0fdf4;">
+                        <input type="radio" name="bt-new-kind" value="good" checked> ✅ טובה
+                    </label>
+                    <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:1.5px solid #fecaca;border-radius:8px;cursor:pointer;background:#fef2f2;">
+                        <input type="radio" name="bt-new-kind" value="bad"> 🚩 רעה
+                    </label>
+                </div>
+                <button onclick="addBehaviorType()" style="width:100%;padding:10px;background:#3b82f6;color:white;border:none;border-radius:10px;font-family:inherit;font-size:0.88rem;font-weight:700;cursor:pointer;">💾 הוסף</button>
+            </div>
         </div>
     </div>
 
