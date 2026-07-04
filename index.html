@@ -1696,6 +1696,13 @@ function renderHome() {
         classroomBtn.innerHTML = '🏫 כיתה';
         classroomBtn.onclick = () => showClassroom(isNone ? null : key);
 
+        const sep7 = document.createElement('div');
+        sep7.className = 'class-sep';
+        const behaviorBtn = document.createElement('button');
+        behaviorBtn.className = 'class-action-btn';
+        behaviorBtn.innerHTML = '🏆 ניקוד';
+        behaviorBtn.onclick = () => showBehaviorList(isNone ? null : key);
+
         actions.appendChild(galleryBtn);
         actions.appendChild(sep);
         actions.appendChild(quizBtn);
@@ -1705,6 +1712,8 @@ function renderHome() {
         actions.appendChild(mquizBtn);
         actions.appendChild(sep4);
         actions.appendChild(classroomBtn);
+        actions.appendChild(sep7);
+        actions.appendChild(behaviorBtn);
 
         // Share button — shown for any class with students
         const clsKey = isNone ? '' : key;
@@ -1777,6 +1786,13 @@ function renderHome() {
     allClassroom.innerHTML = '🏫 כיתה';
     allClassroom.onclick = () => showClassroom(undefined);
 
+    const allSep4b = document.createElement('div');
+    allSep4b.className = 'class-sep';
+    const allBehavior = document.createElement('button');
+    allBehavior.className = 'class-action-btn';
+    allBehavior.innerHTML = '🏆 ניקוד';
+    allBehavior.onclick = () => showBehaviorList(undefined);
+
     const allSep5 = document.createElement('div');
     allSep5.className = 'class-sep';
     const importClassBtn = document.createElement('button');
@@ -1794,6 +1810,8 @@ function renderHome() {
     allRow.appendChild(allMquiz);
     allRow.appendChild(allSep4);
     allRow.appendChild(allClassroom);
+    allRow.appendChild(allSep4b);
+    allRow.appendChild(allBehavior);
     allRow.appendChild(allSep5);
     allRow.appendChild(importClassBtn);
     list.appendChild(allRow);
