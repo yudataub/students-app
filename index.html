@@ -2355,6 +2355,57 @@ function addBehaviorPoint(typeId) {
     showToast(`${t.emoji} נקודה נוספה`);
 }
 
+function openBehaviorTypesEditor() {
+    renderBehaviorTypesList();
+    document.getElementById('behavior-types-overlay').classList.add('open');
+}
+function closeBehaviorTypesEditor() {
+    document.getElementById('behavior-types-overlay').classList.remove('open');
+}
+function renderBehaviorTypesList() {
+    const listEl = document.getElementById('behavior-types-list');
+    listEl.innerHTML = '';
+    ['good', 'bad'].forEach(kind => {
+        const groupLabel = document.createElement('div');
+        groupLabel.style.cssText = 'font-size:0.75rem;font-weight:700;color:#9ca3af;margin:10px 4px 6px;';
+        groupLabel.textContent = kind === 'good' ? 'נקודות טובות' : 'נקודות רעות';
+        listEl.appendChild(groupLabel);
+        behaviorTypes.filter(t => t.kind === kind).forEach(t => {
+            const row = document.createElement('div');
+            row.className = 'missing-item';
+            const nameCell = document.createElement('div');
+            nameCell.className = 'missing-item-name';
+            nameCell.textContent = `${t.emoji} ${t.label}`;
+            const delBtn = document.createElement('button');
+            delBtn.className = 'missing-add-btn';
+            delBtn.style.cssText = 'color:#ef4444;background:#fef2f2;border-color:#fecaca;';
+            delBtn.textContent = '🗑️';
+            delBtn.onclick = () => deleteBehaviorType(t.id);
+            row.appendChild(nameCell);
+            row.appendChild(delBtn);
+            listEl.appendChild(row);
+        });
+    });
+}
+function deleteBehaviorType(typeId) {
+    if (!confirm('למחוק את סוג ההתנהגות הזה מהרשימה?\nרשומות עבר שכבר ניתנו לא יימחקו.')) return;
+    behaviorTypes = behaviorTypes.filter(t => t.id !== typeId);
+    saveBehaviorTypes();
+    renderBehaviorTypesList();
+}
+function addBehaviorType() {
+    const emoji = document.getElementById('bt-new-emoji').value.trim();
+    const label = document.getElementById('bt-new-label').value.trim();
+    const kind = document.querySelector('input[name="bt-new-kind"]:checked').value;
+    if (!emoji || !label) { showToast("⚠️ יש למלא אמוג'י ותיאור"); return; }
+    behaviorTypes.push({ id: generateId(), emoji, label, kind });
+    saveBehaviorTypes();
+    document.getElementById('bt-new-emoji').value = '';
+    document.getElementById('bt-new-label').value = '';
+    renderBehaviorTypesList();
+    showToast('✅ נוסף לרשימה');
+}
+
 // ===== DETAIL =====
 let currentStudentId = null;
 function showDetail(id) {
