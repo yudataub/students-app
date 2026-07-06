@@ -1407,6 +1407,7 @@ if (!localStorage.getItem('guide_seen')) { setTimeout(openGuide, 400); }
 let students = JSON.parse(localStorage.getItem('students') || '[]');
 students.forEach(s => { if (s.className === undefined) s.className = ''; });
 students.forEach(s => { if (!s.behaviorLog) s.behaviorLog = []; });
+students.forEach(s => { if (typeof s.id !== 'string' || !s.id) s.id = generateId(); });
 let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
 
 const DEFAULT_BEHAVIOR_TYPES = [
@@ -3220,6 +3221,7 @@ async function cloudSaveNow(silent) {
         console.log('[cloudSave] students with photo:', withPhoto, '/', snapshot.students.length);
         const batch = _fbFirestore.batch();
         snapshot.students.forEach(s => {
+            if (typeof s.id !== 'string' || !s.id) return;
             batch.set(photosCol.doc(s.id), { photo: s.photo || null });
         });
         await batch.commit();
