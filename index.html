@@ -165,6 +165,9 @@
         .bulk-item img { width: 56px; height: 56px; object-fit: cover; object-position: top; border-radius: 8px; flex-shrink: 0; }
         .bulk-item input { flex: 1; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 0.95rem; direction: rtl; font-family: inherit; }
         .bulk-item input:focus { outline: none; border-color: #8b5cf6; }
+        .bulk-item select { flex: 1; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 0.95rem; direction: rtl; font-family: inherit; background: #fff; min-width: 0; }
+        .bulk-mode-btn { flex: 1; padding: 9px; border: 1.5px solid #e5e7eb; background: #fff; border-radius: 10px; font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit; color: #6b7280; }
+        .bulk-mode-btn.active { background: #f5f3ff; border-color: #8b5cf6; color: #7c3aed; }
         .bulk-item .remove-btn { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #ef4444; flex-shrink: 0; padding: 4px; }
         .btn-bulk-save {
             width: 100%; padding: 14px; background: #8b5cf6; color: white;
@@ -737,9 +740,13 @@
 
     <!-- BULK UPLOAD -->
     <div id="view-bulk" class="view">
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button class="bulk-mode-btn active" id="bulk-mode-new" onclick="setBulkMode('new')">➕ צור תלמידים חדשים</button>
+            <button class="bulk-mode-btn" id="bulk-mode-match" onclick="setBulkMode('match')">🔗 התאם תמונות לקיימים</button>
+        </div>
         <div class="form-group">
             <label>כיתה לכל התמונות</label>
-            <select id="bulk-class" onchange="onClassSelectChange('bulk-class','bulk-new-class-wrap')">
+            <select id="bulk-class" onchange="onClassSelectChange('bulk-class','bulk-new-class-wrap'); bulkClassChanged()">
                 <option value="">ללא שיוך לכיתה</option>
             </select>
             <div class="new-class-wrap" id="bulk-new-class-wrap">
@@ -2085,6 +2092,62 @@ function saveStudent() {
 
 // ===== BULK UPLOAD =====
 let bulkItems = [];
+let bulkMode = 'new'; // 'new' — create students | 'match' — attach photos to existing students
+
+function setBulkMode(mode) {
+    bulkMode = mode;
+    document.getElementById('bulk-mode-new').classList.toggle('active', mode === 'new');
+    document.getElementById('bulk-mode-match').classList.toggle('active', mode === 'match');
+    const sel = document.getElementById('bulk-class');
+    const firstOpt = sel.options[0];
+    if (mode === 'match') {
+        if (sel.value === NEW_CLASS_OPT) { sel.value = ''; onClassSelectChange('bulk-class', 'bulk-new-class-wrap'); }
+        if (firstOpt) firstOpt.textContent = 'כל התלמידים';
+    } else if (firstOpt) firstOpt.textContent = 'ללא שיוך לכיתה';
+    document.getElementById('bulk-save-btn').textContent = mode === 'match' ? '💾 עדכן תמונות לתלמידים' : '💾 שמור את כל התלמידים';
+    bulkItems.forEach(item => { delete item.matchId; });
+    renderBulkList();
+}
+
+function bulkClassChanged() {
+    if (bulkMode !== 'match') return;
+    const sel = document.getElementById('bulk-class');
+    if (sel.value === NEW_CLASS_OPT) {
+        sel.value = '';
+        onClassSelectChange('bulk-class', 'bulk-new-class-wrap');
+        showToast('⚠️ במצב התאמה בחר כיתה קיימת');
+    }
+    bulkItems.forEach(item => { delete item.matchId; });
+    renderBulkList();
+}
+
+function _bulkMatchCandidates() {
+    const sel = document.getElementById('bulk-class');
+    const cls = sel.value;
+    return cls ? students.filter(s => s.className === cls) : students;
+}
+
+function _bulkNorm(s) { return (s || '').replace(/[^֐-׿a-zA-Z0-9]/g, ''); }
+function _bulkWordSet(s) { return (s || '').split(/\s+/).map(_bulkNorm).filter(Boolean).sort().join('|'); }
+
+// Unique match or nothing — a wrong photo on the wrong child is worse than no match
+function _findBestMatch(name, candidates) {
+    const n = _bulkNorm(name);
+    if (!n) return null;
+    let hits = candidates.filter(s => _bulkNorm(s.name) === n);
+    if (hits.length === 1) return hits[0];
+    if (hits.length > 1) return null;
+    const w = _bulkWordSet(name);
+    hits = candidates.filter(s => _bulkWordSet(s.name) === w);
+    if (hits.length === 1) return hits[0];
+    if (hits.length > 1) return null;
+    hits = candidates.filter(s => {
+        const c = _bulkNorm(s.name);
+        return c.length > 1 && n.length > 1 && (c.includes(n) || n.includes(c));
+    });
+    return hits.length === 1 ? hits[0] : null;
+}
+
 function handleBulkPhotos(e) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -2107,17 +2170,57 @@ function handleBulkPhotos(e) {
 function renderBulkList() {
     const list = document.getElementById('bulk-list');
     list.innerHTML = '';
+    const candidates = bulkMode === 'match' ? _bulkMatchCandidates() : [];
     bulkItems.forEach((item, idx) => {
         const div = document.createElement('div');
         div.className = 'bulk-item';
-        const inputId = `bulk-name-input-${idx}`;
-        div.innerHTML = `<img src="${item.photo}" alt=""><input type="text" id="${inputId}" value="${item.name}" placeholder="שם התלמיד" oninput="bulkItems[${idx}].name=this.value"><button onclick="openNamePicker('${inputId}',${idx})" title="בחר שם מרשימה" style="padding:0 8px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:8px;font-size:1rem;cursor:pointer;height:36px;white-space:nowrap;line-height:1;flex-shrink:0;">📋</button><button class="remove-btn" onclick="removeBulkItem(${idx})">✕</button>`;
+        if (bulkMode === 'match') {
+            if (item.matchId === undefined) {
+                const m = _findBestMatch(item.name, candidates);
+                item.matchId = m ? m.id : '';
+            }
+            const options = ['<option value="">— בחר תלמיד (לא ישויך) —</option>']
+                .concat(candidates.map(s => {
+                    const hasPhoto = s.photo && s.photo !== PLACEHOLDER_PHOTO;
+                    const selected = String(s.id) === String(item.matchId) ? ' selected' : '';
+                    return `<option value="${s.id}"${selected}>${s.name}${hasPhoto ? ' 📷' : ''}</option>`;
+                })).join('');
+            div.innerHTML = `<img src="${item.photo}" alt=""><select onchange="bulkItems[${idx}].matchId=this.value">${options}</select><button class="remove-btn" onclick="removeBulkItem(${idx})">✕</button>`;
+        } else {
+            const inputId = `bulk-name-input-${idx}`;
+            div.innerHTML = `<img src="${item.photo}" alt=""><input type="text" id="${inputId}" value="${item.name}" placeholder="שם התלמיד" oninput="bulkItems[${idx}].name=this.value"><button onclick="openNamePicker('${inputId}',${idx})" title="בחר שם מרשימה" style="padding:0 8px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:8px;font-size:1rem;cursor:pointer;height:36px;white-space:nowrap;line-height:1;flex-shrink:0;">📋</button><button class="remove-btn" onclick="removeBulkItem(${idx})">✕</button>`;
+        }
         list.appendChild(div);
     });
     document.getElementById('bulk-save-btn').style.display = bulkItems.length ? 'block' : 'none';
 }
 function removeBulkItem(idx) { bulkItems.splice(idx, 1); renderBulkList(); }
+function saveBulkMatches() {
+    const chosen = bulkItems.filter(i => i.matchId);
+    if (!chosen.length) { showToast('⚠️ לא שויכה אף תמונה לתלמיד'); return; }
+    const ids = chosen.map(i => String(i.matchId));
+    const dupId = ids.find((id, i) => ids.indexOf(id) !== i);
+    if (dupId) {
+        const s = students.find(x => String(x.id) === dupId);
+        alert(`שתי תמונות שויכו לאותו תלמיד ("${s ? s.name : ''}").\nתקן את השיוך לפני שמירה.`);
+        return;
+    }
+    chosen.forEach(item => {
+        const s = students.find(x => String(x.id) === String(item.matchId));
+        if (s) s.photo = item.photo;
+    });
+    saveData();
+    const skipped = bulkItems.length - chosen.length;
+    bulkItems = [];
+    document.getElementById('bulk-list').innerHTML = '';
+    document.getElementById('bulk-save-btn').style.display = 'none';
+    document.getElementById('bulk-input').value = '';
+    showToast(`✅ עודכנו תמונות ל-${chosen.length} תלמידים` + (skipped ? ` (${skipped} דולגו)` : ''));
+    showView('home');
+}
+
 function saveBulk() {
+    if (bulkMode === 'match') { saveBulkMatches(); return; }
     const className = getSelectedClass('bulk-class', 'bulk-new-class');
     const valid = bulkItems.filter(i => i.name.trim());
     if (!valid.length) { showToast('⚠️ אנא הכנס שמות לתלמידים'); return; }
@@ -3132,6 +3235,30 @@ async function signOutUser() {
     showToast('👋 יצאת מהחשבון');
 }
 
+// השוואה קנונית (מפתחות ממוינים) כדי שסדר תכונות שונה בין ענן למקומי לא ייחשב כהבדל
+function _canonicalJSON(obj) {
+    if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+    if (Array.isArray(obj)) return '[' + obj.map(_canonicalJSON).join(',') + ']';
+    const keys = Object.keys(obj).sort();
+    return '{' + keys.map(k => JSON.stringify(k) + ':' + _canonicalJSON(obj[k])).join(',') + '}';
+}
+
+// true אם נתוני הענן זהים לגמרי לנתונים המקומיים (אותם תלמידים, אותם שדות) —
+// כדי לא להציג את דיאלוג האישור כשאין בכלל מה למזג
+function _cloudMatchesLocal(cloud) {
+    const cloudStudents = (cloud.students || []).filter(s => !deletedTombstones[String(s.id)]);
+    if (cloudStudents.length !== students.length) return false;
+    const localById = new Map(students.map(s => [String(s.id), s]));
+    return cloudStudents.every(cs => {
+        const ls = localById.get(String(cs.id));
+        if (!ls) return false;
+        // התמונה מגיעה מתת-אוסף נפרד ומטופלת בנפרד — לא רלוונטית להשוואת "האם יש הבדל תוכן"
+        const { photo: _cp, ...cRest } = cs;
+        const { photo: _lp, ...lRest } = ls;
+        return _canonicalJSON(cRest) === _canonicalJSON(lRest);
+    });
+}
+
 async function _onCloudLogin(user) {
     // Resume real-time listeners for shared classes
     _resumeSharedListeners();
@@ -3145,14 +3272,19 @@ async function _onCloudLogin(user) {
         const cloud = await _readCloudData(user.uid);
         if (cloud && cloud.students && cloud.students.length > 0) {
             if (students.length > 0) {
-                const cloudDate = new Date(cloud.ts).toLocaleDateString('he');
-                const loadCloud = confirm(
-                    `☁️ נמצאו נתונים בענן (${cloud.students.length} תלמידים, ${cloudDate})\n` +
-                    `💾 ויש נתונים מקומיים (${students.length} תלמידים)\n\n` +
-                    `לחץ אישור כדי למזג את נתוני הענן (אף תלמיד מקומי לא יימחק)\nלחץ ביטול כדי להעלות את הנתונים המקומיים לענן`
-                );
-                if (loadCloud) { _applyCloudData(cloud); showToast('☁️ נתוני הענן מוזגו — סה"כ ' + students.length + ' תלמידים'); }
-                else { await cloudSaveNow(); }
+                if (_cloudMatchesLocal(cloud)) {
+                    // אין הבדל תוכן בין הענן למקומי — לא מציגים דיאלוג, רק מעדכנים את חותמת הסנכרון
+                    localStorage.setItem('cloudLastSync', cloud.ts.toString());
+                } else {
+                    const cloudDate = new Date(cloud.ts).toLocaleDateString('he');
+                    const loadCloud = confirm(
+                        `☁️ נמצאו נתונים בענן (${cloud.students.length} תלמידים, ${cloudDate})\n` +
+                        `💾 ויש נתונים מקומיים (${students.length} תלמידים)\n\n` +
+                        `לחץ אישור כדי למזג את נתוני הענן (אף תלמיד מקומי לא יימחק)\nלחץ ביטול כדי להעלות את הנתונים המקומיים לענן`
+                    );
+                    if (loadCloud) { _applyCloudData(cloud); showToast('☁️ נתוני הענן מוזגו — סה"כ ' + students.length + ' תלמידים'); }
+                    else { await cloudSaveNow(); }
+                }
             } else {
                 _applyCloudData(cloud);
                 showToast(`☁️ נטענו ${cloud.students.length} תלמידים מהענן`);
