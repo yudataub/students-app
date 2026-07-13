@@ -744,6 +744,10 @@
             <button class="bulk-mode-btn active" id="bulk-mode-new" onclick="setBulkMode('new')">➕ צור תלמידים חדשים</button>
             <button class="bulk-mode-btn" id="bulk-mode-match" onclick="setBulkMode('match')">🔗 התאם תמונות לקיימים</button>
         </div>
+        <label id="bulk-onlymissing-wrap" style="display:none;align-items:center;gap:8px;margin-bottom:12px;font-size:0.9rem;color:#4b5563;cursor:pointer;">
+            <input type="checkbox" id="bulk-onlymissing" checked onchange="bulkOnlyMissingChanged()" style="width:18px;height:18px;accent-color:#8b5cf6;cursor:pointer;">
+            עדכן רק תלמידים שאין להם תמונה
+        </label>
         <div class="form-group">
             <label>כיתה לכל התמונות</label>
             <select id="bulk-class" onchange="onClassSelectChange('bulk-class','bulk-new-class-wrap'); bulkClassChanged()">
@@ -2098,6 +2102,7 @@ function setBulkMode(mode) {
     bulkMode = mode;
     document.getElementById('bulk-mode-new').classList.toggle('active', mode === 'new');
     document.getElementById('bulk-mode-match').classList.toggle('active', mode === 'match');
+    document.getElementById('bulk-onlymissing-wrap').style.display = mode === 'match' ? 'flex' : 'none';
     const sel = document.getElementById('bulk-class');
     const firstOpt = sel.options[0];
     if (mode === 'match') {
@@ -2108,6 +2113,13 @@ function setBulkMode(mode) {
     bulkItems.forEach(item => { delete item.matchId; });
     renderBulkList();
 }
+
+function bulkOnlyMissingChanged() {
+    bulkItems.forEach(item => { delete item.matchId; });
+    renderBulkList();
+}
+
+function _bulkHasPhoto(s) { return !!(s.photo && s.photo !== PLACEHOLDER_PHOTO); }
 
 function bulkClassChanged() {
     if (bulkMode !== 'match') return;
@@ -2124,7 +2136,9 @@ function bulkClassChanged() {
 function _bulkMatchCandidates() {
     const sel = document.getElementById('bulk-class');
     const cls = sel.value;
-    return cls ? students.filter(s => s.className === cls) : students;
+    let list = cls ? students.filter(s => s.className === cls) : students;
+    if (document.getElementById('bulk-onlymissing').checked) list = list.filter(s => !_bulkHasPhoto(s));
+    return list;
 }
 
 function _bulkNorm(s) { return (s || '').replace(/[^֐-׿a-zA-Z0-9]/g, ''); }
