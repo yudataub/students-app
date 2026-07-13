@@ -1416,6 +1416,24 @@ students.forEach(s => { if (!s.behaviorLog) s.behaviorLog = []; });
 students.forEach(s => { if (typeof s.id !== 'string' || !s.id) s.id = generateId(); });
 let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
 
+// ===== DELETION TOMBSTONES =====
+// Only explicit deletions land here. Cloud merge uses this so an update can
+// never remove a student — it can only apply deletions the user asked for.
+let deletedTombstones = JSON.parse(localStorage.getItem('deletedTombstones') || '{}');
+(function pruneTombstones() {
+    const cutoff = Date.now() - 180 * 24 * 60 * 60 * 1000;
+    let changed = false;
+    Object.entries(deletedTombstones).forEach(([id, ts]) => {
+        if (ts < cutoff) { delete deletedTombstones[id]; changed = true; }
+    });
+    if (changed) localStorage.setItem('deletedTombstones', JSON.stringify(deletedTombstones));
+})();
+function recordDeletion(ids) {
+    const now = Date.now();
+    ids.forEach(id => { deletedTombstones[String(id)] = now; });
+    localStorage.setItem('deletedTombstones', JSON.stringify(deletedTombstones));
+}
+
 const DEFAULT_BEHAVIOR_TYPES = [
     { id: 'good-hw',     emoji: '✅', label: 'הגיש שיעורי בית',   kind: 'good' },
     { id: 'good-part',   emoji: '🙋', label: 'השתתפות פעילה',     kind: 'good' },
@@ -2603,6 +2621,7 @@ function saveEditAssoc() {
 
 function deleteStudent() {
     if (!confirm('למחוק את התלמיד?')) return;
+    recordDeletion([currentStudentId]);
     students = students.filter(s => s.id !== currentStudentId);
     saveData();
     showToast('🗑️ תלמיד נמחק');
@@ -2890,6 +2909,7 @@ function clearClassSeating(className) {
 function clearClass(className) {
     const count = students.filter(s => s.className === className).length;
     if (!confirm(`למחוק את כל ${count} התלמידים בכיתה "${className}"?\nפעולה זו אינה ניתנת לביטול.`)) return;
+    recordDeletion(students.filter(s => s.className === className).map(s => s.id));
     students = students.filter(s => s.className !== className);
     saveData();
     showToast(`🗑️ כיתה "${className}" רוקנה`);
@@ -2899,6 +2919,7 @@ function clearClass(className) {
 function resetAndRebuildClass(className) {
     const count = students.filter(s => s.className === className).length;
     if (!confirm(`למחוק את כל ${count} התלמידים בכיתה "${className}" ולהתחיל מחדש?\nפעולה זו אינה ניתנת לביטול.`)) return;
+    recordDeletion(students.filter(s => s.className === className).map(s => s.id));
     students = students.filter(s => s.className !== className);
     saveData();
     showView('bulk');
@@ -3128,9 +3149,9 @@ async function _onCloudLogin(user) {
                 const loadCloud = confirm(
                     `☁️ נמצאו נתונים בענן (${cloud.students.length} תלמידים, ${cloudDate})\n` +
                     `💾 ויש נתונים מקומיים (${students.length} תלמידים)\n\n` +
-                    `לחץ אישור כדי לטעון מהענן\nלחץ ביטול כדי לשמור את הנתונים המקומיים לענן`
+                    `לחץ אישור כדי למזג את נתוני הענן (אף תלמיד מקומי לא יימחק)\nלחץ ביטול כדי להעלות את הנתונים המקומיים לענן`
                 );
-                if (loadCloud) { _applyCloudData(cloud); showToast('☁️ נתונים נטענו מהענן'); }
+                if (loadCloud) { _applyCloudData(cloud); showToast('☁️ נתוני הענן מוזגו — סה"כ ' + students.length + ' תלמידים'); }
                 else { await cloudSaveNow(); }
             } else {
                 _applyCloudData(cloud);
@@ -3160,7 +3181,7 @@ function _getCloudSnapshot() {
     Object.entries(importedNamesMap).forEach(([k, v]) => {
         namesMap[k === '' ? 'NO_CLASS' : k] = v;
     });
-    return { v: 1, ts: Date.now(), students, seating, importedNamesMap: namesMap };
+    return { v: 1, ts: Date.now(), students, seating, importedNamesMap: namesMap, tombstones: deletedTombstones };
 }
 
 // Read main doc + photos subcollection from Firestore server (bypass cache)
@@ -3182,31 +3203,41 @@ async function _readCloudData(uid) {
 }
 
 function _applyCloudData(data) {
+    // Adopt explicit deletions made on other devices
+    Object.entries(data.tombstones || {}).forEach(([id, ts]) => {
+        if (!deletedTombstones[id] || ts > deletedTombstones[id]) deletedTombstones[id] = ts;
+    });
+    localStorage.setItem('deletedTombstones', JSON.stringify(deletedTombstones));
     // Preserve local photos when cloud photo is null (cloud sync strips photos if subcollection fails)
     const localPhotos = {};
     students.forEach(s => { if (s.photo) localPhotos[s.id] = s.photo; });
-    students = (data.students || []).map(s => ({
-        ...s,
-        photo: s.photo || localPhotos[s.id] || null
-    }));
+    // Safety net: merge, never replace. A cloud update can add or modify students,
+    // but a student disappears only via a tombstone (explicit deletion).
+    const cloudStudents = (data.students || [])
+        .filter(s => !deletedTombstones[String(s.id)])
+        .map(s => ({ ...s, photo: s.photo || localPhotos[s.id] || null }));
+    const cloudIds = new Set(cloudStudents.map(s => String(s.id)));
+    const preserved = students.filter(s => !cloudIds.has(String(s.id)) && !deletedTombstones[String(s.id)]);
+    students = [...cloudStudents, ...preserved];
     if (data.importedNamesMap) {
-        // Decode 'NO_CLASS' back to '' for legacy entries
-        const namesMap = {};
+        // Decode 'NO_CLASS' back to '' for legacy entries; keep local-only name lists
+        const namesMap = { ...importedNamesMap };
         Object.entries(data.importedNamesMap).forEach(([k, v]) => {
             namesMap[k === 'NO_CLASS' ? '' : k] = v;
         });
         importedNamesMap = namesMap;
         localStorage.setItem('importedNamesMap', JSON.stringify(importedNamesMap));
     }
-    // Clear old seating
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('seating_')) localStorage.removeItem(k);
-    }
+    // Apply cloud seating on top; keep local seating the cloud copy doesn't know
     Object.entries(data.seating || {}).forEach(([k, v]) => localStorage.setItem(k, JSON.stringify(v)));
     localStorage.setItem('students', JSON.stringify(students));
     localStorage.setItem('cloudLastSync', data.ts.toString());
     renderHome();
+    if (preserved.length > 0) {
+        showToast(`🛡️ ${preserved.length} תלמידים שחסרו בענן נשמרו והועלו חזרה`);
+        cloudSaveNow(true); // heal the cloud copy so other devices get them back
+    }
+    return preserved.length;
 }
 
 async function cloudSaveNow(silent) {
@@ -3255,7 +3286,7 @@ async function cloudPullNow() {
         const ok = confirm(`נמצאו בענן: ${count} תלמידים (נשמר: ${date})\n\nלטעון אותם?`);
         if (ok) {
             _applyCloudData(cloud);
-            showToast(`✅ נטענו ${count} תלמידים מהענן (כולל תמונות)`);
+            showToast(`✅ מוזגו נתוני הענן — סה"כ ${students.length} תלמידים`);
         }
     } catch(err) {
         alert('שגיאה בקריאה מהענן:\n' + err.message);
@@ -3354,7 +3385,7 @@ async function _checkAndPullCloud() {
             // Don't auto-apply if cloud has no photos but local does (prevents data loss)
             if (cloudPhotosCount === 0 && localPhotosCount > 0) return;
             _applyCloudData(cloud);
-            showToast(`☁️ עודכן מהענן: ${cloud.students.length} תלמידים`);
+            showToast(`☁️ עודכן מהענן — סה"כ ${students.length} תלמידים`);
         }
     } catch {} // silently ignore
 }
