@@ -1421,10 +1421,13 @@ function handleGuideOverlayClick(e) { if (e.target === document.getElementById('
 if (!localStorage.getItem('guide_seen')) { setTimeout(openGuide, 400); }
 
 // ===== DATA =====
+const PLACEHOLDER_PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#e5e7eb"/><circle cx="60" cy="44" r="24" fill="#9ca3af"/><ellipse cx="60" cy="104" rx="42" ry="30" fill="#9ca3af"/></svg>');
+
 let students = JSON.parse(localStorage.getItem('students') || '[]');
 students.forEach(s => { if (s.className === undefined) s.className = ''; });
 students.forEach(s => { if (!s.behaviorLog) s.behaviorLog = []; });
 students.forEach(s => { if (typeof s.id !== 'string' || !s.id) s.id = generateId(); });
+students.forEach(s => { if (!s.photo) s.photo = PLACEHOLDER_PHOTO; });
 let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
 
 // ===== DELETION TOMBSTONES =====
@@ -1499,7 +1502,6 @@ function goBack() {
 }
 
 // ===== MISSING STUDENTS =====
-const PLACEHOLDER_PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#e5e7eb"/><circle cx="60" cy="44" r="24" fill="#9ca3af"/><ellipse cx="60" cy="104" rx="42" ry="30" fill="#9ca3af"/></svg>');
 let _missingClass = '';
 
 function _normName(n) { return (n || '').trim().replace(/\s+/g, ' '); }
