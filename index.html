@@ -979,6 +979,13 @@
                 <button onclick="closeSettings()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9ca3af;line-height:1;">✕</button>
             </div>
 
+            <!-- DESKTOP BACKUP EXPORT -->
+            <div class="cloud-section">
+                <h4>💻 גיבוי לגרסה המקומית</h4>
+                <p style="font-size:0.82rem;color:#6b7280;margin-bottom:10px;">מוריד קובץ עם כל התלמידים, התמונות והניקוד, לייבוא לאפליקציה שרצה על המחשב שלך (ללא הגבלת אחסון).</p>
+                <button class="cloud-btn sync" onclick="exportFullBackup()">📦 ייצוא גיבוי מלא למחשב</button>
+            </div>
+
             <!-- CLOUD SYNC SECTION -->
             <div class="cloud-section">
                 <h4>☁️ סנכרון ענן — גישה מכל מכשיר</h4>
@@ -1473,6 +1480,26 @@ function saveData() {
     _scheduleSharedSync();
 }
 function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+
+// ===== FULL BACKUP EXPORT (for the desktop/local version) =====
+function exportFullBackup() {
+    const backup = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k === 'students' || k === 'behaviorTypes' || k === 'deletedTombstones' ||
+            k === 'importedNamesMap' || k.startsWith('seating_')) {
+            backup[k] = localStorage.getItem(k);
+        }
+    }
+    const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'backup.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('📦 קובץ הגיבוי הורד — ייבא אותו באפליקציה המקומית');
+}
 function getClasses() { return [...new Set(students.map(s => s.className).filter(Boolean))].sort(); }
 function classColor(name) {
     if (!name) return '#9ca3af';
