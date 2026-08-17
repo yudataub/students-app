@@ -1903,7 +1903,16 @@ function populateClassSelect(selectId) {
 
 function onClassSelectChange(selectId, wrapId) {
     const sel = document.getElementById(selectId);
-    document.getElementById(wrapId).style.display = sel.value === NEW_CLASS_OPT ? 'block' : 'none';
+    const wrap = document.getElementById(wrapId);
+    const show = sel.value === NEW_CLASS_OPT;
+    wrap.style.display = show ? 'block' : 'none';
+    if (show) {
+        // Some mobile browsers don't hand focus/keyboard to a field that
+        // was just revealed right after a native <select> interaction —
+        // ask explicitly so the user can actually start typing.
+        const input = wrap.querySelector('input');
+        if (input) setTimeout(() => input.focus(), 0);
+    }
 }
 
 function getSelectedClass(selectId, newInputId) {
