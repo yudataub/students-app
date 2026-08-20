@@ -1473,6 +1473,7 @@ students.forEach(s => { if (s.className === undefined) s.className = ''; });
 students.forEach(s => { if (!s.behaviorLog) s.behaviorLog = []; });
 students.forEach(s => { if (typeof s.id !== 'string' || !s.id) s.id = generateId(); });
 students.forEach(s => { if (!s.photo) s.photo = PLACEHOLDER_PHOTO; });
+students.forEach(s => { if (!Array.isArray(s.extraPhotos)) s.extraPhotos = []; });
 let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
 
 // ===== DELETION TOMBSTONES =====
@@ -2231,11 +2232,42 @@ function handleBulkPhotos(e) {
             resizeImage(ev.target.result, resized => {
                 bulkItems[idx] = { name: nameFromFilename(file.name), photo: resized };
                 loaded++;
-                if (loaded === files.length) renderBulkList();
+                if (loaded === files.length) {
+                    if (bulkMode === 'new') _mergeDuplicateBulkItems();
+                    renderBulkList();
+                }
             });
         };
         reader.readAsDataURL(file);
     });
+}
+
+// Two photos of the same kid are sometimes uploaded with a distinguishing
+// suffix in the filename ("דוד כהן א" / "דוד כהן ב", or "1" / "2") so they
+// don't overwrite each other on disk. Recognize that pattern and merge them
+// into one student with extra photos, instead of creating two students.
+function _stripBulkDupSuffix(name) { return name.replace(/\s+([א-ט]|\d{1,2})$/, '').trim(); }
+function _mergeDuplicateBulkItems() {
+    const groups = new Map();
+    bulkItems.forEach(item => {
+        const base = _stripBulkDupSuffix(item.name) || item.name;
+        if (!groups.has(base)) groups.set(base, []);
+        groups.get(base).push(item);
+    });
+    let merged = 0;
+    const result = [];
+    groups.forEach((items, base) => {
+        if (items.length > 1) {
+            result.push({ name: base, photo: items[0].photo, extraPhotos: items.slice(1).map(i => i.photo) });
+            merged += items.length - 1;
+        } else {
+            result.push(items[0]);
+        }
+    });
+    if (merged > 0) {
+        bulkItems = result;
+        showToast(`🔗 זוהו ${merged} תמונות נוספות לתלמידים קיימים ברשימה — מוזגו אוטומטית`);
+    }
 }
 function renderBulkList() {
     const list = document.getElementById('bulk-list');
@@ -2258,7 +2290,9 @@ function renderBulkList() {
             div.innerHTML = `<img src="${item.photo}" alt=""><select onchange="bulkItems[${idx}].matchId=this.value">${options}</select><button class="remove-btn" onclick="removeBulkItem(${idx})">✕</button>`;
         } else {
             const inputId = `bulk-name-input-${idx}`;
-            div.innerHTML = `<img src="${item.photo}" alt=""><input type="text" id="${inputId}" value="${item.name}" placeholder="שם התלמיד" oninput="bulkItems[${idx}].name=this.value"><button onclick="openNamePicker('${inputId}',${idx})" title="בחר שם מרשימה" style="padding:0 8px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:8px;font-size:1rem;cursor:pointer;height:36px;white-space:nowrap;line-height:1;flex-shrink:0;">📋</button><button class="remove-btn" onclick="removeBulkItem(${idx})">✕</button>`;
+            const extraBadge = item.extraPhotos && item.extraPhotos.length
+                ? `<span title="עוד ${item.extraPhotos.length} תמונות של אותו תלמיד" style="font-size:0.75rem;color:#8b5cf6;font-weight:700;white-space:nowrap;flex-shrink:0;">🔗 +${item.extraPhotos.length}</span>` : '';
+            div.innerHTML = `<img src="${item.photo}" alt=""><input type="text" id="${inputId}" value="${item.name}" placeholder="שם התלמיד" oninput="bulkItems[${idx}].name=this.value">${extraBadge}<button onclick="openNamePicker('${inputId}',${idx})" title="בחר שם מרשימה" style="padding:0 8px;background:#f0f9ff;color:#0369a1;border:1.5px solid #bae6fd;border-radius:8px;font-size:1rem;cursor:pointer;height:36px;white-space:nowrap;line-height:1;flex-shrink:0;">📋</button><button class="remove-btn" onclick="removeBulkItem(${idx})">✕</button>`;
         }
         list.appendChild(div);
     });
@@ -2294,7 +2328,7 @@ function saveBulk() {
     const className = getSelectedClass('bulk-class', 'bulk-new-class');
     const valid = bulkItems.filter(i => i.name.trim());
     if (!valid.length) { showToast('⚠️ אנא הכנס שמות לתלמידים'); return; }
-    valid.forEach(item => students.push({ id: generateId(), name: item.name.trim(), photo: item.photo, association: '', className, correct: 0, wrong: 0 }));
+    valid.forEach(item => students.push({ id: generateId(), name: item.name.trim(), photo: item.photo, extraPhotos: item.extraPhotos || [], association: '', className, correct: 0, wrong: 0 }));
     saveData();
     bulkItems = [];
     document.getElementById('bulk-list').innerHTML = '';
@@ -2858,6 +2892,14 @@ function playCorrectSound() {
 let quizStudents = [], quizIndex = 0, quizCorrect = 0, quizWrong = 0;
 let currentQuizClass;
 
+// A student can have more than one photo (e.g. an unclear photo was
+// supplemented with a second one during bulk upload) — quizzes pick one at
+// random per appearance, but scoring always resolves to the one student.
+function _quizPhotoFor(s) {
+    const options = [s.photo, ...(s.extraPhotos || [])].filter(Boolean);
+    return options.length ? options[Math.floor(Math.random() * options.length)] : PLACEHOLDER_PHOTO;
+}
+
 function startQuiz(cls) {
     currentQuizClass = cls;
     const isAll  = cls === undefined;
@@ -2884,7 +2926,7 @@ function renderQuestion() {
     const student = quizStudents[quizIndex];
     document.getElementById('quiz-progress-bar').style.width = (quizIndex / total * 100) + '%';
     document.getElementById('quiz-progress-text').textContent = `שאלה ${quizIndex + 1} מתוך ${total}`;
-    document.getElementById('quiz-photo').src = student.photo;
+    document.getElementById('quiz-photo').src = _quizPhotoFor(student);
     document.getElementById('result-panel').style.display = 'none';
     document.getElementById('btn-next').style.display = 'none';
 
@@ -3011,7 +3053,7 @@ function renderRQuestion() {
         const card = document.createElement('div');
         card.className = 'rquiz-photo-card';
         card.dataset.id = s.id;
-        card.innerHTML = `<img src="${s.photo}" alt="">`;
+        card.innerHTML = `<img src="${_quizPhotoFor(s)}" alt="">`;
         card.onclick = () => selectRAnswer(card, s.id, student);
         grid.appendChild(card);
     });
@@ -3781,7 +3823,7 @@ function renderMQuestion() {
     const student = mquizStudents[mquizIndex];
     document.getElementById('mquiz-progress-bar').style.width = (mquizIndex / total * 100) + '%';
     document.getElementById('mquiz-progress-text').textContent = `שאלה ${mquizIndex + 1} מתוך ${total}`;
-    document.getElementById('mquiz-photo').src = student.photo;
+    document.getElementById('mquiz-photo').src = _quizPhotoFor(student);
     const emojiEl = document.getElementById('mquiz-emoji-hint');
     if (student.emoji) { emojiEl.textContent = student.emoji; emojiEl.style.display = 'block'; }
     else { emojiEl.style.display = 'none'; }
