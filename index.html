@@ -1290,7 +1290,7 @@
     <div class="settings-overlay" id="lastname-overlay" onclick="closeLastNameImport(event)">
         <div class="settings-box" style="max-width:400px;">
             <h3>📋 השלם שמות משפחה מקובץ</h3>
-            <p class="settings-desc">העלה קובץ טקסט עם שם מלא בכל שורה. האפליקציה תמצא תלמידים עם שם פרטי ייחודי ותשלים להם את שם המשפחה.</p>
+            <p class="settings-desc">העלה קובץ טקסט עם שם מלא בכל שורה, או קובץ אקסל עם עמודות "שם פרטי" ו"שם משפחה". האפליקציה תמצא תלמידים עם שם פרטי ייחודי ותשלים להם את שם המשפחה.</p>
             <div style="margin-bottom:12px;">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;margin-bottom:8px;">
                     <input type="radio" name="ln-format" value="first-last" checked> שם פרטי ואחריו שם משפחה
@@ -1298,13 +1298,14 @@
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;">
                     <input type="radio" name="ln-format" value="last-first"> שם משפחה ואחריו שם פרטי
                 </label>
+                <div style="color:#9ca3af;font-size:0.75rem;margin-top:4px;">רלוונטי לקובץ טקסט בלבד — בקובץ אקסל עם עמודות "שם פרטי"/"שם משפחה" הסדר מזוהה אוטומטית</div>
             </div>
             <div style="border:2px dashed #0ea5e9;border-radius:12px;padding:20px;text-align:center;cursor:pointer;margin-bottom:14px;" onclick="document.getElementById('lastname-file-input').click()">
                 <div style="font-size:2rem;margin-bottom:6px;">📄</div>
-                <div style="color:#6b7280;font-size:0.9rem;">לחץ לבחירת קובץ טקסט</div>
-                <div style="color:#c0c0c0;font-size:0.78rem;margin-top:4px;">.txt — שם אחד בכל שורה</div>
+                <div style="color:#6b7280;font-size:0.9rem;">לחץ לבחירת קובץ טקסט או אקסל</div>
+                <div style="color:#c0c0c0;font-size:0.78rem;margin-top:4px;">.txt — שם אחד בכל שורה · .xlsx — עמודות שם פרטי/שם משפחה</div>
             </div>
-            <input type="file" id="lastname-file-input" accept=".txt,.csv,text/*" style="display:none" onchange="handleLastNameFile(event)">
+            <input type="file" id="lastname-file-input" accept=".txt,.csv,text/*,.xlsx,.xls" style="display:none" onchange="handleLastNameFile(event)">
             <div id="lastname-preview" style="display:none;margin-bottom:14px;max-height:200px;overflow-y:auto;border-radius:10px;"></div>
             <div class="settings-row">
                 <button class="btn-settings-save" id="lastname-apply-btn" onclick="applyLastNames()" style="display:none">✅ החל שינויים</button>
@@ -5902,8 +5903,7 @@ function selectPickedName(name) {
 // "names" instead of one combined "first last" name. Detect those header
 // columns and combine per-row; otherwise fall back to the old flatten-all-
 // cells approach for simple single-column name lists.
-function extractNamesFromSheetRows(rows) {
-    const isHeb = t => t.length > 1 && /^[א-ת\s'"\-]+$/.test(t);
+function _detectNameColumns(rows) {
     let headerRowIdx = -1, firstCol = -1, lastCol = -1, fullCol = -1;
     for (let i = 0; i < Math.min(rows.length, 5); i++) {
         (rows[i] || []).forEach((cell, ci) => {
@@ -5914,6 +5914,10 @@ function extractNamesFromSheetRows(rows) {
         });
         if (firstCol !== -1 || lastCol !== -1 || fullCol !== -1) { headerRowIdx = i; break; }
     }
+    return { headerRowIdx, firstCol, lastCol, fullCol };
+}
+function extractNamesFromSheetRows(rows) {
+    const { headerRowIdx, firstCol, lastCol, fullCol } = _detectNameColumns(rows);
     if (headerRowIdx !== -1 && (firstCol !== -1 || lastCol !== -1 || fullCol !== -1)) {
         const names = [];
         for (let i = headerRowIdx + 1; i < rows.length; i++) {
@@ -5926,6 +5930,7 @@ function extractNamesFromSheetRows(rows) {
         }
         return names;
     }
+    const isHeb = t => t.length > 1 && /^[א-ת\s'"\-]+$/.test(t);
     const names = [];
     rows.forEach(row => {
         (row || []).forEach(cell => {
@@ -5935,6 +5940,22 @@ function extractNamesFromSheetRows(rows) {
         });
     });
     return names;
+}
+// Like extractNamesFromSheetRows, but keeps שם פרטי/שם משפחה as separate fields
+// instead of combining them — needed so callers can match against a student's
+// existing (possibly multi-word) first name exactly, not just its first token.
+// Returns null when no such columns were found, so callers can fall back.
+function extractNamePairsFromSheetRows(rows) {
+    const { headerRowIdx, firstCol, lastCol } = _detectNameColumns(rows);
+    if (headerRowIdx === -1 || firstCol === -1 || lastCol === -1) return null;
+    const pairs = [];
+    for (let i = headerRowIdx + 1; i < rows.length; i++) {
+        const row = rows[i] || [];
+        const first = row[firstCol] != null ? String(row[firstCol]).trim() : '';
+        const last  = row[lastCol]  != null ? String(row[lastCol]).trim()  : '';
+        if (first && last) pairs.push({ first, last });
+    }
+    return pairs;
 }
 function handleNamesListFile(e) {
     const file = e.target.files[0];
@@ -6025,6 +6046,28 @@ function loadSheetJS() {
 function handleLastNameFile(e) {
     const file = e.target.files[0];
     if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'xlsx' || ext === 'xls') {
+        loadSheetJS().then(XLSX => {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const wb = XLSX.read(ev.target.result, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                const pairs = extractNamePairsFromSheetRows(rows);
+                if (pairs && pairs.length) {
+                    lastNameMatches = matchNamePairsToStudents(pairs);
+                    renderLastNamePreview();
+                } else {
+                    // No "\u05E9\u05DD \u05E4\u05E8\u05D8\u05D9"/"\u05E9\u05DD \u05DE\u05E9\u05E4\u05D7\u05D4" columns found \u2014 fall back to
+                    // treating each row's combined name as free text.
+                    processLastNameFile(extractNamesFromSheetRows(rows).join('\n'));
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }).catch(() => showToast('\u26A0\uFE0F \u05E9\u05D2\u05D9\u05D0\u05D4 \u05D1\u05D8\u05E2\u05D9\u05E0\u05EA \u05E7\u05D5\u05D1\u05E5 Excel'));
+        return;
+    }
     // Try UTF-8 first; if no Hebrew characters found, retry as windows-1255
     const r1 = new FileReader();
     r1.onload = ev => {
@@ -6038,6 +6081,30 @@ function handleLastNameFile(e) {
         }
     };
     r1.readAsText(file, 'UTF-8');
+}
+// Excel columns give us the exact \u05E9\u05DD \u05E4\u05E8\u05D8\u05D9 \u2014 match it in full (not just the
+// first token) so multi-word first names like "\u05D0\u05D1\u05D9\u05E9\u05D9 \u05D9\u05E6\u05D7\u05E7" match correctly.
+function matchNamePairsToStudents(pairs) {
+    const cls = lastNameImportClass;
+    const isAll = cls === undefined;
+    const isNone = cls === null;
+    const pool = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === cls);
+    // If the file itself has two rows with the same first name (e.g. two
+    // students named "יאיר"), a single pool student with that first name is
+    // NOT a safe unique match — we can't tell which row's last name is theirs.
+    const fileNameCounts = {};
+    pairs.forEach(({ first }) => { fileNameCounts[first] = (fileNameCounts[first] || 0) + 1; });
+    const matches = [];
+    pairs.forEach(({ first, last }) => {
+        const found = pool.filter(s => s.name.trim() === first);
+        if (found.length === 0) return;
+        if (found.length === 1 && fileNameCounts[first] === 1) {
+            matches.push({ student: found[0], newName: first + ' ' + last, status: 'match' });
+        } else {
+            matches.push({ firstName: first, lastName: last, status: 'ambiguous', count: Math.max(found.length, fileNameCounts[first]) });
+        }
+    });
+    return matches;
 }
 function extractNameFromLine(line) {
     // Handle tab-separated format (e.g. "1\tכהן דוד\t123456\t...")
