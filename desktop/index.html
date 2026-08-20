@@ -909,10 +909,21 @@
                 <span class="sb-item wrong" id="summary-wrong"></span>
             </div>
         </div>
-        <div class="action-buttons">
+        <div class="action-buttons" id="summary-actions">
             <button class="menu-btn btn-quiz" onclick="quizAgain()"><span class="icon">🔄</span> מבחן נוסף</button>
             <button class="menu-btn btn-gallery" onclick="galleryAgain()"><span class="icon">📋</span> רשימת תלמידים</button>
             <button class="menu-btn btn-back-home" onclick="showView('home')"><span class="icon">🏠</span> תפריט ראשי</button>
+        </div>
+    </div>
+
+    <!-- QUIZ SETUP MODAL (regular vs progressive) -->
+    <div class="mquiz-setup-overlay" id="quiz-setup-overlay" onclick="closeQuizSetup(event)">
+        <div class="mquiz-setup-box">
+            <h3>📝 מבחן</h3>
+            <div class="section-title" style="margin-top:0;margin-bottom:10px;">איך תרצה להתחיל?</div>
+            <button class="btn-start-mquiz" style="margin-bottom:10px;" onclick="confirmRegularQuiz()">📝 מבחן רגיל על כל הכיתה</button>
+            <button class="btn-start-mquiz" style="background:#16a34a;" onclick="confirmProgressiveQuiz()">🌱 למידה הדרגתית — שלב אחר שלב<br><span style="font-weight:400;font-size:0.78rem">מומלץ למורה חדש: 4 תלמידים בכל פעם</span></button>
+            <div id="quiz-setup-prog-status" style="font-size:12.5px;color:#64748b;margin-top:10px;text-align:center;"></div>
         </div>
     </div>
 
@@ -1756,7 +1767,7 @@ function renderHome() {
         const quizBtn = document.createElement('button');
         quizBtn.className = `class-action-btn quiz-btn-sm${canQuiz ? '' : ' disabled'}`;
         quizBtn.innerHTML = '📝 מבחן';
-        if (canQuiz) quizBtn.onclick = () => startQuiz(isNone ? null : key);
+        if (canQuiz) quizBtn.onclick = () => showQuizSetup(isNone ? null : key);
 
         const sep2 = document.createElement('div');
         sep2.className = 'class-sep';
@@ -1846,7 +1857,7 @@ function renderHome() {
     const allQuiz = document.createElement('button');
     allQuiz.className = `class-action-btn quiz-btn-sm${canAll ? '' : ' disabled'}`;
     allQuiz.innerHTML = '📝 מבחן';
-    if (canAll) allQuiz.onclick = () => startQuiz(undefined);
+    if (canAll) allQuiz.onclick = () => showQuizSetup(undefined);
 
     const allSep2 = document.createElement('div');
     allSep2.className = 'class-sep';
@@ -2891,6 +2902,8 @@ function playCorrectSound() {
 // ===== QUIZ =====
 let quizStudents = [], quizIndex = 0, quizCorrect = 0, quizWrong = 0;
 let currentQuizClass;
+let quizRunMode = 'normal'; // 'normal' | 'progressive' — read by nextQuestion() to route completion
+const DEFAULT_SUMMARY_ACTIONS_HTML = document.getElementById('summary-actions').innerHTML;
 
 // A student can have more than one photo (e.g. an unclear photo was
 // supplemented with a second one during bulk upload) — quizzes pick one at
@@ -2901,6 +2914,7 @@ function _quizPhotoFor(s) {
 }
 
 function startQuiz(cls) {
+    quizRunMode = 'normal';
     currentQuizClass = cls;
     const isAll  = cls === undefined;
     const isNone = cls === null;
@@ -2982,13 +2996,18 @@ function selectAnswer(btn, student) {
     }
 }
 
-function nextQuestion() { quizIndex++; if (quizIndex >= quizStudents.length) showSummary('quiz'); else renderQuestion(); }
+function nextQuestion() {
+    quizIndex++;
+    if (quizIndex >= quizStudents.length) { if (quizRunMode === 'progressive') finishProgressiveRound(); else showSummary('quiz'); }
+    else renderQuestion();
+}
 function quizAgain()    { if (lastQuizMode === 'rquiz') startRQuiz(currentRQuizClass); else if (lastQuizMode === 'mquiz') showMQuizSetup(currentMQuizClass); else startQuiz(currentQuizClass); }
 function galleryAgain() { showGallery(lastQuizMode === 'rquiz' ? currentRQuizClass : lastQuizMode === 'mquiz' ? currentMQuizClass : currentQuizClass); }
 
 let lastQuizMode = 'quiz';
 function showSummary(mode) {
     lastQuizMode = mode || 'quiz';
+    document.getElementById('summary-actions').innerHTML = DEFAULT_SUMMARY_ACTIONS_HTML;
     const correct = lastQuizMode === 'rquiz' ? rquizCorrect : lastQuizMode === 'mquiz' ? mquizCorrect : quizCorrect;
     const wrong   = lastQuizMode === 'rquiz' ? rquizWrong   : lastQuizMode === 'mquiz' ? mquizWrong   : quizWrong;
     const total   = lastQuizMode === 'rquiz' ? rquizStudents.length : lastQuizMode === 'mquiz' ? mquizStudents.length : quizStudents.length;
@@ -3000,6 +3019,228 @@ function showSummary(mode) {
     document.getElementById('summary-score-label').textContent = `${pct}% הצלחה`;
     document.getElementById('summary-correct').textContent     = `✓ ${correct} נכון`;
     document.getElementById('summary-wrong').textContent       = `✗ ${wrong} טעות`;
+    showView('summary');
+}
+
+// ===== QUIZ SETUP (regular vs. progressive) =====
+let quizSetupPendingClass;
+function showQuizSetup(cls) {
+    quizSetupPendingClass = cls;
+    const state = loadProgState(cls);
+    const statusEl = document.getElementById('quiz-setup-prog-status');
+    statusEl.textContent = (state && state.unlocked > 0)
+        ? `יש התקדמות שמורה בלמידה ההדרגתית: ${state.unlocked}/${state.order.length} תלמידים נלמדו עד כה.`
+        : '';
+    document.getElementById('quiz-setup-overlay').classList.add('open');
+}
+function closeQuizSetup(e) {
+    if (e && e.target !== document.getElementById('quiz-setup-overlay')) return;
+    document.getElementById('quiz-setup-overlay').classList.remove('open');
+}
+function confirmRegularQuiz() {
+    document.getElementById('quiz-setup-overlay').classList.remove('open');
+    startQuiz(quizSetupPendingClass);
+}
+function confirmProgressiveQuiz() {
+    document.getElementById('quiz-setup-overlay').classList.remove('open');
+    startProgressiveMode(quizSetupPendingClass);
+}
+
+// ===== PROGRESSIVE LEARNING MODE =====
+// A beginner-friendly path through startQuiz's engine: learn PROG_BATCH new
+// students at a time (100% required), then once more than one batch is
+// unlocked, a cumulative test over everyone learned so far (100% required)
+// gates moving on to the next batch. Progress is saved per class so a
+// teacher can leave and resume later.
+const PROG_BATCH = 4;
+let progMode = false;       // true while the active quiz round belongs to a progressive run
+let progPhase = null;       // 'batch' | 'cumulative'
+let progClassKey;           // cls value (string/null/undefined) of the active progressive run
+let progPendingBatchLen = 0; // size of the batch currently being learned/verified
+
+function progStorageKey(cls) {
+    return 'progressive_' + (cls === undefined ? '__all__' : cls === null ? '__none__' : cls);
+}
+function loadProgState(cls) {
+    return JSON.parse(localStorage.getItem(progStorageKey(cls)) || 'null');
+}
+function saveProgState(cls, state) {
+    localStorage.setItem(progStorageKey(cls), JSON.stringify(state));
+}
+function progPool(cls) {
+    const isAll = cls === undefined, isNone = cls === null;
+    return isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === cls);
+}
+function _progSetBadge(text) {
+    const badge = document.getElementById('quiz-class-badge');
+    badge.style.display = 'inline-block';
+    badge.style.background = '#16a34a';
+    badge.textContent = text;
+}
+
+function startProgressiveMode(cls) {
+    const pool = progPool(cls);
+    if (pool.length < 2) { showToast('נדרשים לפחות 2 תלמידים'); return; }
+
+    let state = loadProgState(cls);
+    const poolIds = new Set(pool.map(s => s.id));
+    if (!state || !Array.isArray(state.order)) {
+        state = { order: [...pool].sort(() => Math.random() - 0.5).map(s => s.id), unlocked: 0 };
+    } else {
+        // Keep saved order/progress; drop students no longer in the pool (deleted/moved),
+        // append any new ones at the end so they show up in a future batch.
+        state.order = state.order.filter(id => poolIds.has(id));
+        const existing = new Set(state.order);
+        pool.forEach(s => { if (!existing.has(s.id)) state.order.push(s.id); });
+        if (state.unlocked > state.order.length) state.unlocked = state.order.length;
+    }
+    saveProgState(cls, state);
+    progClassKey = cls;
+    runProgressiveBatch();
+}
+
+function progResetClass(cls) {
+    if (!confirm('לאפס את ההתקדמות בלמידה ההדרגתית ולהתחיל מהתחלה?')) return;
+    localStorage.removeItem(progStorageKey(cls));
+    startProgressiveMode(cls);
+}
+
+function runProgressiveBatch() {
+    const state = loadProgState(progClassKey);
+    if (!state || state.unlocked >= state.order.length) { showProgressiveDone(); return; }
+    const batchIds = state.order.slice(state.unlocked, state.unlocked + PROG_BATCH);
+    const roster = batchIds.map(id => students.find(s => s.id === id)).filter(Boolean);
+    if (roster.length === 0) { showProgressiveDone(); return; }
+    const stageNum = Math.floor(state.unlocked / PROG_BATCH) + 1;
+    progPendingBatchLen = batchIds.length;
+    progPhase = 'batch';
+    progMode = true;
+    quizRunMode = 'progressive';
+    quizStudents = [...roster].sort(() => Math.random() - 0.5);
+    quizIndex = quizCorrect = quizWrong = 0;
+    _progSetBadge(`🌱 שלב ${stageNum} · ${roster.length} תלמידים חדשים`);
+    showView('quiz');
+    renderQuestion();
+}
+
+function runProgressiveCumulative() {
+    const state = loadProgState(progClassKey);
+    const end = Math.min(state.unlocked + progPendingBatchLen, state.order.length);
+    const roster = state.order.slice(0, end).map(id => students.find(s => s.id === id)).filter(Boolean);
+    const stageNum = Math.floor(state.unlocked / PROG_BATCH) + 1;
+    progPhase = 'cumulative';
+    progMode = true;
+    quizRunMode = 'progressive';
+    quizStudents = [...roster].sort(() => Math.random() - 0.5);
+    quizIndex = quizCorrect = quizWrong = 0;
+    _progSetBadge(`🌱 מבחן מצטבר · שלב ${stageNum} (${roster.length} תלמידים)`);
+    showView('quiz');
+    renderQuestion();
+}
+
+function finishProgressiveRound() {
+    const passed = quizWrong === 0;
+    const pct = Math.round(quizCorrect / quizStudents.length * 100);
+    document.getElementById('summary-emoji').textContent       = passed ? '🏆' : '💪';
+    document.getElementById('summary-score-num').textContent   = `${quizCorrect}/${quizStudents.length}`;
+    document.getElementById('summary-score-label').textContent = `${pct}% הצלחה`;
+    document.getElementById('summary-correct').textContent     = `✓ ${quizCorrect} נכון`;
+    document.getElementById('summary-wrong').textContent       = `✗ ${quizWrong} טעות`;
+
+    const actions = document.getElementById('summary-actions');
+    actions.innerHTML = '';
+
+    if (!passed) {
+        const msg = document.createElement('div');
+        msg.style.cssText = 'text-align:center;color:#7c2d12;font-size:15px;margin-bottom:14px;';
+        msg.textContent = progPhase === 'batch'
+            ? 'כמעט! צריך 100% כדי לקבל תעודה על התלמידים החדשים.'
+            : 'כמעט! צריך 100% במבחן המצטבר כדי לעלות שלב.';
+        actions.appendChild(msg);
+        const retryBtn = document.createElement('button');
+        retryBtn.className = 'menu-btn btn-quiz';
+        retryBtn.innerHTML = '<span class="icon">🔁</span> ננסה שוב';
+        retryBtn.onclick = () => { if (progPhase === 'batch') runProgressiveBatch(); else runProgressiveCumulative(); };
+        actions.appendChild(retryBtn);
+        showView('summary');
+        return;
+    }
+
+    const state = loadProgState(progClassKey);
+    if (progPhase === 'batch') {
+        const stageNum = Math.floor(state.unlocked / PROG_BATCH) + 1;
+        const names = state.order.slice(state.unlocked, state.unlocked + progPendingBatchLen)
+            .map(id => (students.find(s => s.id === id) || {}).name).filter(Boolean).join(', ');
+        actions.appendChild(_progCertBlock(`תעודת הצטיינות — שלב ${stageNum}!`, `למדת בהצלחה: ${names}`, '#fef9c3,#fde68a', '#f59e0b', '#78350f'));
+
+        const isFirstBatch = state.unlocked === 0;
+        if (isFirstBatch) {
+            // No prior knowledge to protect yet — advance straight away.
+            state.unlocked += progPendingBatchLen;
+            saveProgState(progClassKey, state);
+        }
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'menu-btn btn-quiz';
+        if (isFirstBatch) {
+            const done = state.unlocked >= state.order.length;
+            nextBtn.innerHTML = done ? '<span class="icon">🎓</span> סיום' : '<span class="icon">➡️</span> לשלב הבא';
+            nextBtn.onclick = () => done ? showProgressiveDone() : runProgressiveBatch();
+        } else {
+            nextBtn.innerHTML = '<span class="icon">📝</span> למבחן המצטבר';
+            nextBtn.onclick = () => runProgressiveCumulative();
+        }
+        actions.appendChild(nextBtn);
+    } else {
+        state.unlocked = Math.min(state.unlocked + progPendingBatchLen, state.order.length);
+        saveProgState(progClassKey, state);
+        const stageNum = Math.floor((state.unlocked - 1) / PROG_BATCH) + 1;
+        actions.appendChild(_progCertBlock(`עברת את השלב ${stageNum}!`, `אתה זוכר בהצלחה ${state.unlocked} תלמידים`, '#dbeafe,#bfdbfe', '#3b82f6', '#1e3a8a'));
+        const done = state.unlocked >= state.order.length;
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'menu-btn btn-quiz';
+        nextBtn.innerHTML = done ? '<span class="icon">🎓</span> סיום' : '<span class="icon">➡️</span> לשלב הבא';
+        nextBtn.onclick = () => done ? showProgressiveDone() : runProgressiveBatch();
+        actions.appendChild(nextBtn);
+    }
+    showView('summary');
+}
+
+function _progCertBlock(title, subtitle, gradient, border, textColor) {
+    const cert = document.createElement('div');
+    cert.style.cssText = `text-align:center;background:linear-gradient(135deg,${gradient});border:2px solid ${border};border-radius:14px;padding:16px;margin-bottom:14px;`;
+    cert.innerHTML = `<div style="font-size:2rem">🎉🏅🎉</div><div style="font-weight:700;margin:6px 0;color:${textColor}">${title}</div><div style="font-size:13px;color:${textColor}">${subtitle}</div>`;
+    return cert;
+}
+
+function showProgressiveDone() {
+    document.getElementById('summary-emoji').textContent       = '🎓';
+    document.getElementById('summary-score-num').textContent   = '🎉';
+    document.getElementById('summary-score-label').textContent = 'סיימת ללמוד את כל הכיתה!';
+    document.getElementById('summary-correct').textContent     = '';
+    document.getElementById('summary-wrong').textContent       = '';
+
+    const actions = document.getElementById('summary-actions');
+    actions.innerHTML = '';
+    actions.appendChild(_progCertBlock('תעודת סיום — כל הכבוד!', 'למדת בהצלחה את שמות כל התלמידים בכיתה', '#dcfce7,#bbf7d0', '#16a34a', '#166534'));
+
+    const homeBtn = document.createElement('button');
+    homeBtn.className = 'menu-btn btn-back-home';
+    homeBtn.innerHTML = '<span class="icon">🏠</span> תפריט ראשי';
+    homeBtn.onclick = () => showView('home');
+    actions.appendChild(homeBtn);
+
+    const galBtn = document.createElement('button');
+    galBtn.className = 'menu-btn btn-gallery';
+    galBtn.innerHTML = '<span class="icon">📋</span> רשימת תלמידים';
+    galBtn.onclick = () => showGallery(progClassKey === undefined ? undefined : progClassKey);
+    actions.appendChild(galBtn);
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'menu-btn btn-quiz';
+    resetBtn.innerHTML = '<span class="icon">🔄</span> להתחיל למידה הדרגתית מחדש';
+    resetBtn.onclick = () => progResetClass(progClassKey);
+    actions.appendChild(resetBtn);
+
     showView('summary');
 }
 
