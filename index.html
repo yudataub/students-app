@@ -3267,7 +3267,7 @@ function renderRQuestion() {
     const isNone = currentRQuizClass === null;
     let pool = isAll ? students : isNone ? students.filter(s => !s.className) : students.filter(s => s.className === currentRQuizClass);
 
-    const cols = pool.length <= 4 ? 2 : pool.length >= 10 ? 4 : 3;
+    const cols = pool.length <= 4 ? 2 : pool.length >= 10 ? 5 : 3;
     const grid = document.getElementById('rquiz-grid');
     grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     grid.innerHTML = '';
