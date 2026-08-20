@@ -5903,6 +5903,46 @@ function selectPickedName(name) {
     }
     document.getElementById('names-picker-overlay').classList.remove('open');
 }
+// School-exported rosters commonly split the name into a "שם פרטי" (first
+// name) column and a "שם משפחה" (last name) column. Naively collecting every
+// Hebrew-only cell (the old behaviour) turns each row into two unrelated
+// "names" instead of one combined "first last" name. Detect those header
+// columns and combine per-row; otherwise fall back to the old flatten-all-
+// cells approach for simple single-column name lists.
+function extractNamesFromSheetRows(rows) {
+    const isHeb = t => t.length > 1 && /^[א-ת\s'"\-]+$/.test(t);
+    let headerRowIdx = -1, firstCol = -1, lastCol = -1, fullCol = -1;
+    for (let i = 0; i < Math.min(rows.length, 5); i++) {
+        (rows[i] || []).forEach((cell, ci) => {
+            const t = cell != null ? String(cell).trim() : '';
+            if (t === 'שם פרטי') firstCol = ci;
+            else if (t === 'שם משפחה') lastCol = ci;
+            else if (t === 'שם מלא' || t === 'שם') fullCol = ci;
+        });
+        if (firstCol !== -1 || lastCol !== -1 || fullCol !== -1) { headerRowIdx = i; break; }
+    }
+    if (headerRowIdx !== -1 && (firstCol !== -1 || lastCol !== -1 || fullCol !== -1)) {
+        const names = [];
+        for (let i = headerRowIdx + 1; i < rows.length; i++) {
+            const row = rows[i] || [];
+            const first = firstCol !== -1 && row[firstCol] != null ? String(row[firstCol]).trim() : '';
+            const last  = lastCol  !== -1 && row[lastCol]  != null ? String(row[lastCol]).trim()  : '';
+            const full  = fullCol  !== -1 && row[fullCol]  != null ? String(row[fullCol]).trim()  : '';
+            const name = full || [first, last].filter(Boolean).join(' ');
+            if (name.length > 1 && /[א-ת]/.test(name)) names.push(name);
+        }
+        return names;
+    }
+    const names = [];
+    rows.forEach(row => {
+        (row || []).forEach(cell => {
+            if (!cell) return;
+            const t = String(cell).trim();
+            if (isHeb(t)) names.push(t);
+        });
+    });
+    return names;
+}
 function handleNamesListFile(e) {
     const file = e.target.files[0];
     e.target.value = '';
@@ -5915,15 +5955,7 @@ function handleNamesListFile(e) {
                 const wb = XLSX.read(ev.target.result, { type: 'array' });
                 const ws = wb.Sheets[wb.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-                const names = [];
-                rows.forEach(row => {
-                    row.forEach(cell => {
-                        if (!cell) return;
-                        const t = String(cell).trim();
-                        if (t.length > 1 && /^[\u05D0-\u05EA\s'"\-]+$/.test(t)) names.push(t);
-                    });
-                });
-                applyImportedNames(names);
+                applyImportedNames(extractNamesFromSheetRows(rows));
             };
             reader.readAsArrayBuffer(file);
         }).catch(() => showToast('⚠️ שגיאה בטעינת קובץ Excel'));
