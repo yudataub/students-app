@@ -998,6 +998,13 @@
                 <button class="cloud-btn sync" onclick="document.getElementById('desktop-import-input').click()">📥 בחר קובץ גיבוי</button>
             </div>
 
+            <!-- MERGE DUPLICATE STUDENTS (cleanup for names uploaded before the auto-merge fix existed) -->
+            <div class="desktop-section">
+                <h4>🔗 איחוד תלמידים כפולים</h4>
+                <p style="font-size:0.82rem;color:#6b7280;margin-bottom:10px;">מאתר תלמידים באותה כיתה עם אותו שם שמסתיים ב-א/ב או 1/2 (למשל "רוני אלמלם א" ו"רוני אלמלם ב") ומאחד אותם לתלמיד אחד עם כמה תמונות — שימושי לתלמידים שנוצרו בטעות פעמיים לפני שהתאמה אוטומטית זו נוספה.</p>
+                <button class="cloud-btn sync" onclick="findAndMergeDuplicateStudents()">🔍 חפש תלמידים כפולים</button>
+            </div>
+
             <!-- CLOUD SYNC SECTION -->
             <div class="cloud-section">
                 <h4>☁️ סנכרון ענן — גישה מכל מכשיר</h4>
@@ -2345,6 +2352,50 @@ function _findExistingStudentForBulkName(name, className) {
     const base = _stripBulkDupSuffix(name) || name;
     const hits = students.filter(s => s.className === className && (_stripBulkDupSuffix(s.name) || s.name) === base);
     return hits.length === 1 ? hits[0] : null;
+}
+
+// Cleanup for students created twice (e.g. "רוני אלמלם א" + "רוני אלמלם ב")
+// BEFORE the automatic upload-time merge existed — groups by class + the same
+// suffix-stripped base name, and asks per group before merging (never merges
+// silently, since two different kids could genuinely share a name).
+function findAndMergeDuplicateStudents() {
+    const groups = new Map();
+    students.forEach(s => {
+        const base = _stripBulkDupSuffix(s.name) || s.name;
+        const key = (s.className || '') + ' ' + base;
+        if (!groups.has(key)) groups.set(key, { base, className: s.className, members: [] });
+        groups.get(key).members.push(s);
+    });
+    const candidates = [...groups.values()].filter(g => g.members.length > 1);
+    if (!candidates.length) { showToast('✅ לא נמצאו תלמידים כפולים'); return; }
+
+    let mergedGroups = 0, skippedGroups = 0;
+    candidates.forEach(g => {
+        const names = g.members.map(m => `• ${m.name}`).join('\n');
+        const clsLabel = g.className || 'ללא כיתה';
+        const ok = confirm(`נמצאו כמה תלמידים באותו שם בכיתה "${clsLabel}":\n${names}\n\nהאם זה אותו תלמיד (לאחד לתלמיד אחד בשם "${g.base}" עם כל התמונות)?\n\nלחץ ביטול אם אלה בעצם שני תלמידים שונים!`);
+        if (!ok) { skippedGroups++; return; }
+        const [keeper, ...rest] = g.members;
+        keeper.name = g.base;
+        if (!keeper.extraPhotos) keeper.extraPhotos = [];
+        rest.forEach(r => {
+            [r.photo, ...(r.extraPhotos || [])].forEach(p => {
+                if (p && p !== keeper.photo && !keeper.extraPhotos.includes(p)) keeper.extraPhotos.push(p);
+            });
+            keeper.correct = (keeper.correct || 0) + (r.correct || 0);
+            keeper.wrong = (keeper.wrong || 0) + (r.wrong || 0);
+            if (r.behaviorLog && r.behaviorLog.length) keeper.behaviorLog = (keeper.behaviorLog || []).concat(r.behaviorLog);
+            if (!keeper.association && r.association) keeper.association = r.association;
+        });
+        recordDeletion(rest.map(r => r.id));
+        students = students.filter(s => !rest.includes(s));
+        mergedGroups++;
+    });
+    saveData();
+    renderHome();
+    showToast(mergedGroups
+        ? `✅ אוחדו ${mergedGroups} קבוצות תלמידים כפולים` + (skippedGroups ? ` (${skippedGroups} דולגו)` : '')
+        : 'לא אוחד אף תלמיד');
 }
 
 function saveBulk() {
