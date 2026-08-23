@@ -2317,19 +2317,47 @@ function saveBulkMatches() {
     showView('home');
 }
 
+// A photo uploaded in "צור תלמידים חדשים" might be a second/clearer photo of
+// a student that was already created in an earlier, separate upload — not
+// just a duplicate within the same batch (that case is handled by
+// _mergeDuplicateBulkItems). Match by the same suffix-stripped name against
+// existing students in the same class, so it gets attached instead of
+// creating a confusing second "student".
+function _findExistingStudentForBulkName(name, className) {
+    const base = _stripBulkDupSuffix(name) || name;
+    const hits = students.filter(s => s.className === className && (_stripBulkDupSuffix(s.name) || s.name) === base);
+    return hits.length === 1 ? hits[0] : null;
+}
+
 function saveBulk() {
     if (bulkMode === 'match') { saveBulkMatches(); return; }
     const className = getSelectedClass('bulk-class', 'bulk-new-class');
     const valid = bulkItems.filter(i => i.name.trim());
     if (!valid.length) { showToast('⚠️ אנא הכנס שמות לתלמידים'); return; }
-    valid.forEach(item => students.push({ id: generateId(), name: item.name.trim(), photo: item.photo, extraPhotos: item.extraPhotos || [], association: '', className, correct: 0, wrong: 0 }));
+    let created = 0, attached = 0;
+    valid.forEach(item => {
+        const name = item.name.trim();
+        const existing = _findExistingStudentForBulkName(name, className);
+        if (existing) {
+            if (!existing.extraPhotos) existing.extraPhotos = [];
+            [item.photo, ...(item.extraPhotos || [])].forEach(p => {
+                if (p && p !== existing.photo && !existing.extraPhotos.includes(p)) existing.extraPhotos.push(p);
+            });
+            attached++;
+        } else {
+            students.push({ id: generateId(), name, photo: item.photo, extraPhotos: item.extraPhotos || [], association: '', className, correct: 0, wrong: 0 });
+            created++;
+        }
+    });
     saveData();
     bulkItems = [];
     document.getElementById('bulk-list').innerHTML = '';
     document.getElementById('bulk-save-btn').style.display = 'none';
     document.getElementById('bulk-input').value = '';
     document.getElementById('bulk-new-class-wrap').style.display = 'none';
-    showToast(`✅ ${valid.length} תלמידים נשמרו!`);
+    showToast(attached
+        ? `✅ ${created} תלמידים חדשים נשמרו, ${attached} תמונות נוספו לתלמידים קיימים`
+        : `✅ ${created} תלמידים נשמרו!`);
     showView('home');
 }
 
