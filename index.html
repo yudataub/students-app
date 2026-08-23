@@ -3022,7 +3022,10 @@ function renderQuestion() {
 
 function buildOptions(correct) {
     const opts = [{ id: correct.id, name: correct.name }];
-    students.filter(s => s.id !== correct.id).sort(() => Math.random() - 0.5).slice(0, 3).forEach(s => opts.push({ id: s.id, name: s.name }));
+    // Wrong-answer options must come from the same quiz pool (i.e. the same
+    // class the quiz was started for) — not the entire roster, which would
+    // mix in students the teacher didn't select for this round.
+    quizStudents.filter(s => s.id !== correct.id).sort(() => Math.random() - 0.5).slice(0, 3).forEach(s => opts.push({ id: s.id, name: s.name }));
     const used = new Set(opts.map(o => o.name));
     fakeNames.filter(n => !used.has(n)).sort(() => Math.random() - 0.5).forEach(n => { if (opts.length < 4) opts.push({ id: null, name: n }); });
     return opts.sort(() => Math.random() - 0.5);
