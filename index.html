@@ -1593,7 +1593,25 @@ function _idbGetAllPhotos() {
 // overwrite a stored photo with the grey silhouette, so it never counts here.
 function _isRealPhoto(p) { return !!p && p !== PLACEHOLDER_PHOTO; }
 
-// Write every in-memory photo to IndexedDB. Never deletes and never stores a
+// What was last written per student, so a save only rewrites photos that
+// actually changed. saveData() runs on every quiz answer and behaviour point;
+// without this, each one would rewrite every photo in the class — megabytes of
+// pointless writes for a change that never touched an image.
+const _writtenPhotos = new Map();
+function _photoUnchanged(s) {
+    const prev = _writtenPhotos.get(String(s.id));
+    const extras = s.extraPhotos || [];
+    // Photos are replaced wholesale (never edited character by character), so
+    // an identical reference means identical content; extras are only ever
+    // pushed to or reassigned, which length plus reference catches.
+    return !!prev && prev.photo === s.photo && prev.extras === extras && prev.len === extras.length;
+}
+function _markPhotoWritten(s) {
+    const extras = s.extraPhotos || [];
+    _writtenPhotos.set(String(s.id), { photo: s.photo, extras, len: extras.length });
+}
+
+// Write changed in-memory photos to IndexedDB. Never deletes and never stores a
 // placeholder: a student whose real photo isn't loaded yet is left untouched,
 // so a save can't wipe what's already stored.
 function _persistPhotos() {
@@ -1602,10 +1620,11 @@ function _persistPhotos() {
         const hasReal = _isRealPhoto(s.photo);
         const hasExtras = s.extraPhotos && s.extraPhotos.length;
         if (!hasReal && !hasExtras) return Promise.resolve();
+        if (_photoUnchanged(s)) return Promise.resolve();
         return _idbPutPhoto(s.id, {
             photo: hasReal ? s.photo : null,
             extraPhotos: s.extraPhotos || []
-        });
+        }).then(() => _markPhotoWritten(s)); // only after it really landed, so a failed write retries
     })).catch(err => console.error('[idb] photo write failed', err));
 }
 
@@ -1656,6 +1675,9 @@ async function _initPhotoStorage() {
             if ((!s.extraPhotos || !s.extraPhotos.length) && rec.extraPhotos) s.extraPhotos = rec.extraPhotos;
         });
         students.forEach(s => { if (!s.photo) s.photo = PLACEHOLDER_PHOTO; });
+        // Everything now in memory matches what's stored, so the next save has
+        // nothing to rewrite until the user actually changes a photo.
+        students.forEach(s => { if (stored[String(s.id)]) _markPhotoWritten(s); });
 
         _photosHydrated = true;
         _persistStudents();   // now safe: rewrite localStorage without photos, freeing the quota
