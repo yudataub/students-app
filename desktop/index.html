@@ -4212,6 +4212,18 @@ function mquizNext() {
     if (mquizIndex >= mquizStudents.length) showSummary('mquiz');
     else renderMQuestion();
 }
+// After a wrong answer the input is disabled (so it can't receive Enter),
+// but the "next question" button is showing — let Enter/Space advance too,
+// so a mistake doesn't force reaching for the mouse.
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const view = document.getElementById('view-mquiz');
+    const nextBtn = document.getElementById('mquiz-btn-next');
+    if (view && view.classList.contains('active') && nextBtn && nextBtn.style.display === 'block') {
+        e.preventDefault();
+        mquizNext();
+    }
+});
 
 // ===== CROP FROM GROUP PHOTO =====
 let cropOrigImage = null;
