@@ -1508,6 +1508,8 @@ function recordDeletion(ids) {
     const now = Date.now();
     ids.forEach(id => { deletedTombstones[String(id)] = now; });
     localStorage.setItem('deletedTombstones', JSON.stringify(deletedTombstones));
+    // Explicit deletion is the only place a stored photo may be dropped.
+    if (typeof _idbDeletePhoto === 'function') ids.forEach(id => _idbDeletePhoto(id));
 }
 
 const DEFAULT_BEHAVIOR_TYPES = [
@@ -1528,11 +1530,141 @@ function goodCount(s) { return (s.behaviorLog || []).filter(e => e.kind === 'goo
 function badCount(s)  { return (s.behaviorLog || []).filter(e => e.kind === 'bad').length; }
 function netScore(s)  { return goodCount(s) - badCount(s); }
 
+// ===== PHOTO STORAGE (IndexedDB) =====
+// localStorage caps out around 5MB, which a class of photos blows past. Keep
+// the small student records there (fast, synchronous) and move the heavy photo
+// data into IndexedDB — the same split the cloud sync already makes by putting
+// photos in their own Firestore subcollection.
+// The desktop version sets this to false: its "localStorage" is a shim over a
+// file on disk with no quota, and photos must stay inside that one file.
+let USE_IDB_PHOTOS = true;
+// Until photos are read out of IndexedDB, `students` in memory has no photos —
+// writing a stripped record set to localStorage then would be harmless, but
+// stripping BEFORE the one-time migration would destroy the only copy. So
+// until this flag flips, saves keep the old inline-photo format.
+let _photosHydrated = false;
+let _idbPromise = null;
+
+function _idbOpen() {
+    if (_idbPromise) return _idbPromise;
+    _idbPromise = new Promise((resolve, reject) => {
+        const req = indexedDB.open('students-app-photos', 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos');
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+    return _idbPromise;
+}
+function _idbTx(mode) {
+    return _idbOpen().then(db => db.transaction('photos', mode).objectStore('photos'));
+}
+function _idbPutPhoto(id, rec) {
+    return _idbTx('readwrite').then(store => new Promise((resolve, reject) => {
+        const r = store.put(rec, String(id));
+        r.onsuccess = () => resolve();
+        r.onerror = () => reject(r.error);
+    }));
+}
+function _idbDeletePhoto(id) {
+    return _idbTx('readwrite').then(store => new Promise((resolve) => {
+        const r = store.delete(String(id));
+        r.onsuccess = r.onerror = () => resolve(); // best-effort cleanup
+    })).catch(() => {});
+}
+function _idbGetAllPhotos() {
+    return _idbTx('readonly').then(store => new Promise((resolve, reject) => {
+        const out = {};
+        const r = store.openCursor();
+        r.onsuccess = () => {
+            const cur = r.result;
+            if (!cur) { resolve(out); return; }
+            out[cur.key] = cur.value;
+            cur.continue();
+        };
+        r.onerror = () => reject(r.error);
+    }));
+}
+
+// Every student always carries a photo value — PLACEHOLDER_PHOTO stands in for
+// "no photo yet". Treating that placeholder as real content would let a save
+// overwrite a stored photo with the grey silhouette, so it never counts here.
+function _isRealPhoto(p) { return !!p && p !== PLACEHOLDER_PHOTO; }
+
+// Write every in-memory photo to IndexedDB. Never deletes and never stores a
+// placeholder: a student whose real photo isn't loaded yet is left untouched,
+// so a save can't wipe what's already stored.
+function _persistPhotos() {
+    if (!USE_IDB_PHOTOS) return Promise.resolve();
+    return Promise.all(students.map(s => {
+        const hasReal = _isRealPhoto(s.photo);
+        const hasExtras = s.extraPhotos && s.extraPhotos.length;
+        if (!hasReal && !hasExtras) return Promise.resolve();
+        return _idbPutPhoto(s.id, {
+            photo: hasReal ? s.photo : null,
+            extraPhotos: s.extraPhotos || []
+        });
+    })).catch(err => console.error('[idb] photo write failed', err));
+}
+
+// Single place that writes the student list, so every caller gets the same
+// photo-stripping and the same quota-error handling.
+function _persistStudents() {
+    const inline = !USE_IDB_PHOTOS || !_photosHydrated;
+    const payload = inline ? students : students.map(s => {
+        const c = { ...s };
+        delete c.photo;
+        delete c.extraPhotos;
+        return c;
+    });
+    try {
+        localStorage.setItem('students', JSON.stringify(payload));
+        return true;
+    } catch (e) {
+        showToast('⚠️ אין מספיק מקום בדפדפן — התמונות לא נשמרו');
+        console.error('[storage] quota exceeded', e);
+        return false;
+    }
+}
+
 function saveData() {
-    try { localStorage.setItem('students', JSON.stringify(students)); }
-    catch(e) { showToast('⚠️ אין מספיק מקום — נסה למחוק תלמידים ישנים'); }
+    _persistStudents();
+    if (USE_IDB_PHOTOS && _photosHydrated) _persistPhotos();
     _scheduleCloudSync();
     _scheduleSharedSync();
+}
+
+// One-time move of inline photos into IndexedDB, then rehydrate memory from it.
+// Order matters: photos are written to IndexedDB and only then is the stripped
+// (smaller) record set written back to localStorage — never the reverse.
+async function _initPhotoStorage() {
+    if (!USE_IDB_PHOTOS || !window.indexedDB) { _photosHydrated = false; return; }
+    try {
+        // Only a genuine photo means "there is something here to migrate" —
+        // after the first run every student holds a placeholder, which must not
+        // be mistaken for content worth writing over the stored originals.
+        const hadInlinePhotos = students.some(s => _isRealPhoto(s.photo) || (s.extraPhotos && s.extraPhotos.length));
+        if (hadInlinePhotos) await _persistPhotos();   // one-time migration
+
+        const stored = await _idbGetAllPhotos();
+        students.forEach(s => {
+            const rec = stored[String(s.id)];
+            if (!rec) return;
+            if (!_isRealPhoto(s.photo) && rec.photo) s.photo = rec.photo;
+            if ((!s.extraPhotos || !s.extraPhotos.length) && rec.extraPhotos) s.extraPhotos = rec.extraPhotos;
+        });
+        students.forEach(s => { if (!s.photo) s.photo = PLACEHOLDER_PHOTO; });
+
+        _photosHydrated = true;
+        _persistStudents();   // now safe: rewrite localStorage without photos, freeing the quota
+        renderHome();
+    } catch (err) {
+        // Fall back to the old inline behaviour rather than risk losing photos.
+        console.error('[idb] init failed, keeping photos in localStorage', err);
+        _photosHydrated = false;
+    }
 }
 function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 
@@ -3600,6 +3732,7 @@ if (!localStorage.getItem('firebaseConfig')) {
     }));
 }
 renderHome();
+_initPhotoStorage(); // async: migrates photos to IndexedDB, then re-renders with them
 _updateCloudUI(); // show correct state immediately before Firebase SDK loads
 initFirebase();
 
@@ -3874,7 +4007,12 @@ function _applyCloudData(data) {
     }
     // Apply cloud seating on top; keep local seating the cloud copy doesn't know
     Object.entries(data.seating || {}).forEach(([k, v]) => localStorage.setItem(k, JSON.stringify(v)));
-    localStorage.setItem('students', JSON.stringify(students));
+    // Go through the shared writer: it strips photos into IndexedDB and reports
+    // a full quota rather than throwing out of here — a raw setItem used to
+    // abort this function, leaving cloudLastSync unset and the app re-pulling
+    // the same snapshot forever.
+    _persistStudents();
+    if (USE_IDB_PHOTOS && _photosHydrated) _persistPhotos();
     localStorage.setItem('cloudLastSync', data.ts.toString());
     renderHome();
     if (preserved.length > 0) {
@@ -5690,19 +5828,25 @@ function _listenSharedClass(classId) {
         .collection('students')
         .onSnapshot(snapshot => {
             _applyingRemoteUpdate = true;
-            snapshot.docChanges().forEach(change => {
-                const data = change.doc.data();
-                if (change.type === 'added' || change.type === 'modified') {
-                    const idx = students.findIndex(s => String(s.id) === String(data.id));
-                    if (idx >= 0) Object.assign(students[idx], data);
-                    else students.push(data);
-                } else if (change.type === 'removed') {
-                    const idx = students.findIndex(s => String(s.id) === String(data.id));
-                    if (idx >= 0) students.splice(idx, 1);
-                }
-            });
-            localStorage.setItem('students', JSON.stringify(students));
-            _applyingRemoteUpdate = false;
+            try {
+                snapshot.docChanges().forEach(change => {
+                    const data = change.doc.data();
+                    if (change.type === 'added' || change.type === 'modified') {
+                        const idx = students.findIndex(s => String(s.id) === String(data.id));
+                        if (idx >= 0) Object.assign(students[idx], data);
+                        else students.push(data);
+                    } else if (change.type === 'removed') {
+                        const idx = students.findIndex(s => String(s.id) === String(data.id));
+                        if (idx >= 0) students.splice(idx, 1);
+                    }
+                });
+                _persistStudents();
+                if (USE_IDB_PHOTOS && _photosHydrated) _persistPhotos();
+            } finally {
+                // Must always clear, or a failed write leaves the flag stuck on
+                // and every later local edit is treated as a remote echo.
+                _applyingRemoteUpdate = false;
+            }
             renderHome();
         });
     _sharedListeners[classId] = unsub;
