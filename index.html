@@ -713,6 +713,10 @@
             <textarea id="input-assoc" placeholder="אסוציאציה שתעזור לזכור את השם..."></textarea>
         </div>
         <div class="form-group">
+            <label>💡 רמז לזכירת השם <span class="optional">(אופציונלי)</span></label>
+            <textarea id="input-hint" placeholder="רמז קצר שיוצג במבחן הזיכרון..."></textarea>
+        </div>
+        <div class="form-group">
             <label>אמוג'י זיכרון <span class="optional">(אופציונלי)</span></label>
             <div class="emoji-gen-row">
                 <input type="text" id="input-emoji" placeholder="🌹" style="max-width:80px;text-align:center;font-size:1.4rem;">
@@ -830,6 +834,18 @@
             </div>
         </div>
         <button id="assoc-add-btn" class="assoc-add-btn" style="display:none" onclick="startEditAssoc()">➕ הוסף רעיון לזכירת השם</button>
+        <div id="detail-hint-box" class="association-box" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div class="assoc-label">💡 רמז לזכירת השם:</div>
+                <button class="edit-name-btn" onclick="startEditHint()" title="ערוך">✏️</button>
+            </div>
+            <div class="assoc-text" id="detail-hint-text"></div>
+            <div id="edit-hint-area" style="display:none;margin-top:8px;">
+                <textarea id="edit-hint-input" style="width:100%;padding:8px 10px;border:1.5px solid #f59e0b;border-radius:8px;font-family:inherit;font-size:0.9rem;direction:rtl;min-height:70px;resize:vertical;box-sizing:border-box;" placeholder="רמז קצר שיוצג במבחן הזיכרון..."></textarea>
+                <button onclick="saveEditHint()" style="margin-top:6px;width:100%;padding:9px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;">שמור</button>
+            </div>
+        </div>
+        <button id="hint-add-btn" class="assoc-add-btn" style="display:none" onclick="startEditHint()">➕ הוסף רמז לזכירת השם</button>
         <!-- EMOJI SECTION IN DETAIL -->
         <div id="detail-emoji-section" class="detail-emoji-section" style="display:none">
             <div class="detail-emoji-header">
@@ -942,6 +958,14 @@
                 <div class="mquiz-hints-toggle" id="mquiz-hints-toggle">✓</div>
                 <div>הצג 2 אותיות ראשונות כרמז</div>
             </div>
+            <div class="mquiz-hints-row" id="mquiz-askhint-row" onclick="toggleMQuizAskHint()">
+                <div class="mquiz-hints-toggle" id="mquiz-askhint-toggle"></div>
+                <div>📝 בכל טעות — פתח שורה לכתיבת רמז</div>
+            </div>
+            <div class="mquiz-hints-row" id="mquiz-autohint-row" onclick="toggleMQuizAutoHint()">
+                <div class="mquiz-hints-toggle" id="mquiz-autohint-toggle"></div>
+                <div>💡 הצג רמז אוטומטית עם התמונה</div>
+            </div>
             <div class="section-title" style="margin-bottom:8px;">תזמון חזרות</div>
             <div class="mquiz-hints-row selected" id="mquiz-srs-row" onclick="toggleMQuizSrs()">
                 <div class="mquiz-hints-toggle" id="mquiz-srs-toggle">✓</div>
@@ -964,11 +988,21 @@
         <img id="mquiz-photo" class="quiz-photo" alt="">
         <div id="mquiz-emoji-hint" class="mquiz-emoji-hint" style="display:none"></div>
         <div id="mquiz-letter-hint" class="mquiz-letter-hint" style="display:none"></div>
+        <button id="mquiz-hint-reveal-btn" style="display:none;margin:0 auto 10px;padding:8px 18px;background:#fffbeb;color:#b45309;border:1.5px solid #fcd34d;border-radius:10px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;" onclick="revealMQuizHint()">💡 רמז</button>
+        <div id="mquiz-hint-text" class="association-box" style="display:none;margin-bottom:10px;">
+            <div class="assoc-label">💡 רמז לזכירת השם:</div>
+            <div class="assoc-text" id="mquiz-hint-text-body"></div>
+        </div>
         <div class="mquiz-input-row">
             <input type="text" id="mquiz-input" class="mquiz-input" placeholder="כתוב את השם..." autocomplete="off" onkeydown="if(event.key==='Enter' && !this.disabled) submitMAnswer()">
             <button class="btn-mquiz-submit" id="btn-mquiz-submit" onclick="submitMAnswer()">בדוק ✓</button>
         </div>
         <div id="mquiz-result-panel" class="mquiz-result" style="display:none"></div>
+        <div id="mquiz-hint-editor" style="display:none;margin-bottom:10px;padding:10px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;">
+            <div class="assoc-label" style="margin-bottom:6px;">💡 כתוב רמז שיעזור לזכור את השם:</div>
+            <textarea id="mquiz-hint-input" style="width:100%;padding:8px 10px;border:1.5px solid #f59e0b;border-radius:8px;font-family:inherit;font-size:0.9rem;direction:rtl;min-height:60px;resize:vertical;box-sizing:border-box;" placeholder="לדוגמה: יש לה משקפיים עגולים..."></textarea>
+            <button onclick="saveMQuizHint()" style="margin-top:6px;width:100%;padding:9px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;">שמור רמז</button>
+        </div>
         <button id="mquiz-btn-next" class="btn-next" style="display:none" onclick="mquizNext()">השאלה הבאה ←</button>
     </div>
 
@@ -1455,6 +1489,7 @@ students.forEach(s => { if (!s.behaviorLog) s.behaviorLog = []; });
 students.forEach(s => { if (typeof s.id !== 'string' || !s.id) s.id = generateId(); });
 students.forEach(s => { if (!s.photo) s.photo = PLACEHOLDER_PHOTO; });
 students.forEach(s => { if (!Array.isArray(s.extraPhotos)) s.extraPhotos = []; });
+students.forEach(s => { if (typeof s.hint !== 'string') s.hint = ''; });
 let importedNamesMap = JSON.parse(localStorage.getItem('importedNamesMap') || '{}');
 
 // ===== DELETION TOMBSTONES =====
@@ -1606,7 +1641,7 @@ function showMissingOverlay(className) {
 }
 
 function addMissingStudent(name) {
-    students.push({ id: generateId(), name, photo: PLACEHOLDER_PHOTO, className: _missingClass, association: '', correct: 0, wrong: 0 });
+    students.push({ id: generateId(), name, photo: PLACEHOLDER_PHOTO, className: _missingClass, association: '', hint: '', correct: 0, wrong: 0 });
     saveData();
     showToast(`✅ ${name} נוסף`);
     // Remove the row from the list
@@ -1623,7 +1658,7 @@ function addMissingStudent(name) {
 function addAllMissing() {
     const missing = _missingClass === null ? getGlobalMissingNames() : getMissingNames(_missingClass);
     missing.forEach(name => {
-        students.push({ id: generateId(), name, photo: PLACEHOLDER_PHOTO, className: _missingClass || '', association: '', correct: 0, wrong: 0 });
+        students.push({ id: generateId(), name, photo: PLACEHOLDER_PHOTO, className: _missingClass || '', association: '', hint: '', correct: 0, wrong: 0 });
     });
     saveData();
     showToast(`✅ נוספו ${missing.length} תלמידים`);
@@ -2136,7 +2171,8 @@ function saveStudent() {
 
     const emoji = document.getElementById('input-emoji').value.trim();
     const emojiExplanation = document.getElementById('input-emoji-explain').value.trim();
-    students.push({ id: generateId(), name, photo: photoData, association: assoc, className, emoji, emojiExplanation, correct: 0, wrong: 0 });
+    const hint = document.getElementById('input-hint').value.trim();
+    students.push({ id: generateId(), name, photo: photoData, association: assoc, hint, className, emoji, emojiExplanation, correct: 0, wrong: 0 });
     saveData();
 
     photoData = null;
@@ -2144,6 +2180,7 @@ function saveStudent() {
     document.getElementById('photo-placeholder').style.display = 'block';
     document.getElementById('input-name').value = '';
     document.getElementById('input-assoc').value = '';
+    document.getElementById('input-hint').value = '';
     document.getElementById('input-emoji').value = '';
     document.getElementById('input-emoji-explain').value = '';
     document.getElementById('photo-input').value = '';
@@ -2368,6 +2405,7 @@ function findAndMergeDuplicateStudents() {
             keeper.wrong = (keeper.wrong || 0) + (r.wrong || 0);
             if (r.behaviorLog && r.behaviorLog.length) keeper.behaviorLog = (keeper.behaviorLog || []).concat(r.behaviorLog);
             if (!keeper.association && r.association) keeper.association = r.association;
+            if (!keeper.hint && r.hint) keeper.hint = r.hint;
         });
         recordDeletion(rest.map(r => r.id));
         students = students.filter(s => !rest.includes(s));
@@ -2396,7 +2434,7 @@ function saveBulk() {
             });
             attached++;
         } else {
-            students.push({ id: generateId(), name, photo: item.photo, extraPhotos: item.extraPhotos || [], association: '', className, correct: 0, wrong: 0 });
+            students.push({ id: generateId(), name, photo: item.photo, extraPhotos: item.extraPhotos || [], association: '', hint: '', className, correct: 0, wrong: 0 });
             created++;
         }
     });
@@ -2769,6 +2807,19 @@ function showDetail(id) {
         addBtn.style.display = 'block';
     }
 
+    const hintBox = document.getElementById('detail-hint-box');
+    const hintAddBtn = document.getElementById('hint-add-btn');
+    document.getElementById('edit-hint-area').style.display = 'none';
+    document.getElementById('detail-hint-text').style.display = '';
+    if (s.hint) {
+        hintBox.style.display = 'block';
+        hintAddBtn.style.display = 'none';
+        document.getElementById('detail-hint-text').textContent = s.hint;
+    } else {
+        hintBox.style.display = 'none';
+        hintAddBtn.style.display = 'block';
+    }
+
     // Emoji section
     const emojiSection = document.getElementById('detail-emoji-section');
     const emojiAddBtn = document.getElementById('emoji-add-btn');
@@ -2897,6 +2948,39 @@ function saveEditAssoc() {
         addBtn.style.display = 'block';
     }
     showToast('✅ אסוציאציה עודכנה!');
+}
+
+// ===== EDIT HINT =====
+function startEditHint() {
+    const s = students.find(x => x.id === currentStudentId);
+    if (!s) return;
+    document.getElementById('edit-hint-input').value = s.hint || '';
+    document.getElementById('detail-hint-box').style.display = 'block';
+    document.getElementById('hint-add-btn').style.display = 'none';
+    document.getElementById('detail-hint-text').style.display = 'none';
+    document.getElementById('edit-hint-area').style.display = 'block';
+    document.getElementById('edit-hint-input').focus();
+}
+
+function saveEditHint() {
+    const newHint = document.getElementById('edit-hint-input').value.trim();
+    const s = students.find(x => x.id === currentStudentId);
+    if (!s) return;
+    s.hint = newHint;
+    saveData();
+    document.getElementById('edit-hint-area').style.display = 'none';
+    document.getElementById('detail-hint-text').style.display = '';
+    const box = document.getElementById('detail-hint-box');
+    const addBtn = document.getElementById('hint-add-btn');
+    if (newHint) {
+        box.style.display = 'block';
+        addBtn.style.display = 'none';
+        document.getElementById('detail-hint-text').textContent = newHint;
+    } else {
+        box.style.display = 'none';
+        addBtn.style.display = 'block';
+    }
+    showToast('✅ הרמז עודכן!');
 }
 
 function deleteStudent() {
@@ -4030,6 +4114,8 @@ let mquizStudents = [], mquizIndex = 0, mquizCorrect = 0, mquizWrong = 0;
 let currentMQuizClass;
 let mquizMode = 'first';
 let mquizHints = true;
+let mquizAskHint = false;
+let mquizAutoHint = false;
 let mquizSrsEnabled = true;
 let mquizPendingClass;
 
@@ -4065,6 +4151,12 @@ function showMQuizSetup(cls) {
     mquizHints = true;
     document.getElementById('mquiz-hints-row').classList.add('selected');
     document.getElementById('mquiz-hints-toggle').textContent = '✓';
+    mquizAskHint = false;
+    document.getElementById('mquiz-askhint-row').classList.remove('selected');
+    document.getElementById('mquiz-askhint-toggle').textContent = '';
+    mquizAutoHint = false;
+    document.getElementById('mquiz-autohint-row').classList.remove('selected');
+    document.getElementById('mquiz-autohint-toggle').textContent = '';
     mquizSrsEnabled = true;
     document.getElementById('mquiz-srs-row').classList.add('selected');
     document.getElementById('mquiz-srs-toggle').textContent = '✓';
@@ -4084,6 +4176,16 @@ function toggleMQuizHints() {
     mquizHints = !mquizHints;
     document.getElementById('mquiz-hints-row').classList.toggle('selected', mquizHints);
     document.getElementById('mquiz-hints-toggle').textContent = mquizHints ? '✓' : '';
+}
+function toggleMQuizAskHint() {
+    mquizAskHint = !mquizAskHint;
+    document.getElementById('mquiz-askhint-row').classList.toggle('selected', mquizAskHint);
+    document.getElementById('mquiz-askhint-toggle').textContent = mquizAskHint ? '✓' : '';
+}
+function toggleMQuizAutoHint() {
+    mquizAutoHint = !mquizAutoHint;
+    document.getElementById('mquiz-autohint-row').classList.toggle('selected', mquizAutoHint);
+    document.getElementById('mquiz-autohint-toggle').textContent = mquizAutoHint ? '✓' : '';
 }
 function toggleMQuizSrs() {
     mquizSrsEnabled = !mquizSrsEnabled;
@@ -4150,6 +4252,18 @@ function renderMQuestion() {
         letterEl.textContent = ans.length > 2 ? ans.slice(0, 2) + '....' : ans;
         letterEl.style.display = 'block';
     } else { letterEl.style.display = 'none'; }
+    // Personal hint: shown up front when "auto" is on, otherwise behind a button
+    const hintBtn = document.getElementById('mquiz-hint-reveal-btn');
+    const hintBox = document.getElementById('mquiz-hint-text');
+    if (student.hint) {
+        document.getElementById('mquiz-hint-text-body').textContent = student.hint;
+        hintBox.style.display = mquizAutoHint ? 'block' : 'none';
+        hintBtn.style.display = mquizAutoHint ? 'none' : 'block';
+    } else {
+        hintBox.style.display = 'none';
+        hintBtn.style.display = 'none';
+    }
+    document.getElementById('mquiz-hint-editor').style.display = 'none';
     const input = document.getElementById('mquiz-input');
     input.value = '';
     input.className = 'mquiz-input';
@@ -4198,7 +4312,29 @@ function submitMAnswer() {
         resultPanel.textContent = `התשובה הנכונה: ${expected}`;
         nextBtn.style.display = 'block';
         nextBtn.textContent = mquizIndex === mquizStudents.length - 1 ? 'סיים מבחן ←' : 'השאלה הבאה ←';
+        // The moment right after a mistake is when a memory hook is easiest to
+        // come up with — offer to write one (prefilled if a hint already exists).
+        if (mquizAskHint) {
+            const editor = document.getElementById('mquiz-hint-editor');
+            const hintInput = document.getElementById('mquiz-hint-input');
+            hintInput.value = student.hint || '';
+            editor.style.display = 'block';
+        }
     }
+}
+function revealMQuizHint() {
+    document.getElementById('mquiz-hint-text').style.display = 'block';
+    document.getElementById('mquiz-hint-reveal-btn').style.display = 'none';
+}
+function saveMQuizHint() {
+    const student = mquizStudents[mquizIndex];
+    if (!student) return;
+    // mquizStudents holds references into the students array, so assigning here
+    // updates the stored student directly (same pattern as .correct/.wrong above).
+    student.hint = document.getElementById('mquiz-hint-input').value.trim();
+    saveData();
+    document.getElementById('mquiz-hint-editor').style.display = 'none';
+    showToast(student.hint ? '✅ הרמז נשמר' : '🗑️ הרמז נמחק');
 }
 function mquizNext() {
     mquizIndex++;
@@ -4210,6 +4346,11 @@ function mquizNext() {
 // so a mistake doesn't force reaching for the mouse.
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
+    // Never steal keys from a text field — the hint editor is visible at
+    // exactly the same time as the next button, and a space typed there
+    // must stay in the textarea instead of advancing the quiz.
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     const view = document.getElementById('view-mquiz');
     const nextBtn = document.getElementById('mquiz-btn-next');
     if (view && view.classList.contains('active') && nextBtn && nextBtn.style.display === 'block') {
@@ -5371,6 +5512,7 @@ function saveFaceNamingGroup() {
             photo: face.photo,
             className,
             association: '',
+            hint: '',
             correct: 0, wrong: 0
         });
     });
