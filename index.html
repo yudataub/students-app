@@ -492,6 +492,11 @@
             text-align: center; font-size: 1.8rem; font-weight: 800; letter-spacing: 0.1em;
             color: #0e7490; margin-bottom: 14px;
         }
+        .mquiz-dup-note {
+            text-align: center; font-size: 0.85rem; font-weight: 700; color: #b45309;
+            background: #fffbeb; border: 1.5px solid #fcd34d; border-radius: 10px;
+            padding: 7px 10px; margin: 0 auto 10px; max-width: 380px;
+        }
         .mquiz-input-row { display: flex; gap: 8px; margin-bottom: 10px; }
         .mquiz-input {
             flex: 1; padding: 13px 16px; border: 2.5px solid #e5e7eb; border-radius: 12px;
@@ -987,6 +992,7 @@
         <div class="quiz-progress-text" id="mquiz-progress-text">שאלה 1</div>
         <img id="mquiz-photo" class="quiz-photo" alt="">
         <div id="mquiz-emoji-hint" class="mquiz-emoji-hint" style="display:none"></div>
+        <div id="mquiz-dup-note" class="mquiz-dup-note" style="display:none"></div>
         <div id="mquiz-letter-hint" class="mquiz-letter-hint" style="display:none"></div>
         <button id="mquiz-hint-reveal-btn" style="display:none;margin:0 auto 10px;padding:8px 18px;background:#fffbeb;color:#b45309;border:1.5px solid #fcd34d;border-radius:10px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;" onclick="revealMQuizHint()">💡 רמז</button>
         <div id="mquiz-hint-text" class="association-box" style="display:none;margin-bottom:10px;">
@@ -4278,6 +4284,36 @@ let mquizAskHint = false;
 let mquizAutoHint = false;
 let mquizSrsEnabled = true;
 let mquizPendingClass;
+// שמות שחוזרים יותר מפעם אחת בכיתה הנבחנת. שני תלמידים בשם "יאיר"
+// אי אפשר להבחין ביניהם לפי שם פרטי בלבד, ולכן עבורם המבחן דורש
+// שם מלא גם במצב "שם פרטי בלבד" (ראה mquizNeedsFullName).
+let mquizDupFirst = new Set(), mquizDupLast = new Set();
+
+function mquizNameParts(student) {
+    return (student.name || '').trim().split(/\s+/).filter(Boolean);
+}
+function mquizFirstOf(student) { return mquizNameParts(student)[0] || ''; }
+function mquizLastOf(student) {
+    const parts = mquizNameParts(student);
+    return parts.length > 1 ? parts[parts.length - 1] : '';
+}
+function mquizDupSet(values) {
+    const counts = new Map();
+    values.forEach(v => { if (v) counts.set(v, (counts.get(v) || 0) + 1); });
+    return new Set([...counts].filter(([, n]) => n > 1).map(([v]) => v));
+}
+function computeMQuizDuplicates(pool) {
+    mquizDupFirst = mquizDupSet(pool.map(mquizFirstOf));
+    mquizDupLast = mquizDupSet(pool.map(mquizLastOf));
+}
+// אמת כאשר חלק השם שנבחר במצב המבחן משותף לתלמיד נוסף בכיתה,
+// ולכן התשובה חייבת לכלול גם את החלק השני.
+function mquizNeedsFullName(student) {
+    if (mquizMode === 'full') return false;
+    const first = mquizFirstOf(student), last = mquizLastOf(student);
+    if (!first || !last) return false;
+    return mquizMode === 'last' ? mquizDupLast.has(last) : mquizDupFirst.has(first);
+}
 
 // Spaced repetition: growing interval on success, reset to "due now" on failure.
 const SRS_INTERVALS_DAYS = [1, 3, 7, 14, 30, 60];
@@ -4365,6 +4401,9 @@ function startMQuiz(cls, mode, hints, srsEnabled) {
     const isNone = cls === null;
     const pool = getMQuizPool(cls);
     if (pool.length < 1) { showToast('נדרש לפחות תלמיד אחד'); return; }
+    // הכפילויות נבדקות על כל הכיתה ולא רק על מי שמופיע במבחן
+    // הזה — שני שמות זהים מתנגשים גם אם רק אחד מהם נשאל היום.
+    computeMQuizDuplicates(pool);
     const now = Date.now();
     let quizPool = pool;
     if (mquizSrsEnabled) {
@@ -4393,6 +4432,7 @@ function startMQuiz(cls, mode, hints, srsEnabled) {
 }
 function getMQuizExpected(student) {
     const parts = student.name.trim().split(/\s+/);
+    if (mquizNeedsFullName(student)) return student.name.trim();
     if (mquizMode === 'first') return parts[0] || student.name;
     if (mquizMode === 'last') return parts.length > 1 ? parts[parts.length - 1] : student.name;
     return student.name;
@@ -4407,11 +4447,31 @@ function renderMQuestion() {
     if (student.emoji) { emojiEl.textContent = student.emoji; emojiEl.style.display = 'block'; }
     else { emojiEl.style.display = 'none'; }
     const letterEl = document.getElementById('mquiz-letter-hint');
-    if (mquizHints) {
-        const ans = getMQuizExpected(student);
-        letterEl.textContent = ans.length > 2 ? ans.slice(0, 2) + '....' : ans;
+    const dupNote = document.getElementById('mquiz-dup-note');
+    const needsFull = mquizNeedsFullName(student);
+    if (needsFull) {
+        // החלק השני של השם הוא הדבר היחיד שמבדיל בין שני התלמידים,
+        // ולכן האות הראשונה שלו מוצגת תמיד — בלעדיה אין לשאלה תשובה
+        // שהתלמיד יכול לדעת, ללא קשר להגדרת הרמזים.
+        const primary = mquizMode === 'last' ? mquizLastOf(student) : mquizFirstOf(student);
+        const secondary = mquizMode === 'last' ? mquizFirstOf(student) : mquizLastOf(student);
+        const secondaryHint = secondary.slice(0, 1) + '....';
+        letterEl.textContent = mquizHints
+            ? (primary.length > 2 ? primary.slice(0, 2) + '....' : primary) + ' ' + secondaryHint
+            : (mquizMode === 'last' ? 'שם פרטי: ' : 'שם משפחה: ') + secondaryHint;
         letterEl.style.display = 'block';
-    } else { letterEl.style.display = 'none'; }
+        dupNote.textContent = mquizMode === 'last'
+            ? '⚠️ יש כמה תלמידים עם שם משפחה זהה — כתוב שם פרטי + שם משפחה'
+            : '⚠️ יש כמה תלמידים עם אותו שם פרטי — כתוב שם פרטי + שם משפחה';
+        dupNote.style.display = 'block';
+    } else {
+        dupNote.style.display = 'none';
+        if (mquizHints) {
+            const ans = getMQuizExpected(student);
+            letterEl.textContent = ans.length > 2 ? ans.slice(0, 2) + '....' : ans;
+            letterEl.style.display = 'block';
+        } else { letterEl.style.display = 'none'; }
+    }
     // Personal hint: shown up front when "auto" is on, otherwise behind a button
     const hintBtn = document.getElementById('mquiz-hint-reveal-btn');
     const hintBox = document.getElementById('mquiz-hint-text');
@@ -4428,7 +4488,8 @@ function renderMQuestion() {
     input.value = '';
     input.className = 'mquiz-input';
     input.disabled = false;
-    input.placeholder = mquizMode === 'first' ? 'כתוב שם פרטי...' : mquizMode === 'last' ? 'כתוב שם משפחה...' : 'כתוב שם מלא...';
+    input.placeholder = needsFull ? 'כתוב שם פרטי + שם משפחה...'
+        : mquizMode === 'first' ? 'כתוב שם פרטי...' : mquizMode === 'last' ? 'כתוב שם משפחה...' : 'כתוב שם מלא...';
     document.getElementById('btn-mquiz-submit').disabled = false;
     document.getElementById('mquiz-result-panel').style.display = 'none';
     document.getElementById('mquiz-btn-next').style.display = 'none';
@@ -4455,7 +4516,7 @@ function submitMAnswer() {
         resultPanel.className = 'mquiz-result correct';
         const msgs = ['מעולה! 🎉', 'כל הכבוד! 👏', 'נכון! 🌟', 'יפה מאוד! ✨', 'מדהים! 💪'];
         let successText = msgs[Math.floor(Math.random() * msgs.length)];
-        if (mquizMode !== 'full' && student.name.trim().includes(' ')) {
+        if (expected !== student.name.trim() && student.name.trim().includes(' ')) {
             successText += '\n' + student.name.trim();
         }
         resultPanel.textContent = successText;
