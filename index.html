@@ -606,6 +606,24 @@
         .cq-name-chip { padding:5px 11px; border:1.5px solid #e5e7eb; border-radius:20px; font-size:0.8rem; font-weight:600; cursor:pointer; background:#f9fafb; transition:all 0.15s; }
         .cq-name-chip.selected { background:#1d4ed8; color:white; border-color:#1d4ed8; }
         .cq-name-chip.revealed { background:#fef3c7; border-color:#f59e0b; color:#92400e; cursor:default; }
+
+        /* DUPLICATE-NAMES GAME */
+        .dup-group { background:white; border-radius:14px; padding:12px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,0.07); }
+        .dup-group-title { font-size:0.95rem; font-weight:800; color:#7c3aed; margin-bottom:10px; text-align:center; }
+        .dup-cards { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+        .dup-card {
+            width:104px; border:2.5px dashed #e5e7eb; border-radius:12px; overflow:hidden;
+            background:#f9fafb; display:flex; flex-direction:column; align-items:center; transition:all 0.15s;
+        }
+        .dup-card img { width:100%; height:104px; object-fit:cover; object-position:top; display:block; }
+        .dup-card .dup-slot { font-size:0.72rem; font-weight:700; padding:5px 3px; text-align:center; width:100%; color:#d1d5db; line-height:1.2; min-height:26px; }
+        .dup-card.armed { border-color:#8b5cf6; border-style:solid; cursor:pointer; }
+        .dup-card.armed:hover { background:#f5f3ff; box-shadow:0 0 0 3px rgba(139,92,246,0.18); }
+        .dup-card.solved { border-color:#10b981; border-style:solid; background:#f0fdf4; }
+        .dup-card.solved .dup-slot { color:#065f46; }
+        .dup-card.wrong { border-color:#ef4444; border-style:solid; background:#fef2f2; animation:dupShake 0.4s; }
+        @keyframes dupShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+        .dup-done-banner { background:#ecfdf5; border:2px solid #10b981; color:#065f46; border-radius:14px; padding:16px; text-align:center; font-weight:800; margin-bottom:12px; }
         /* DRAG-PHOTO POOL */
         .cq-photo-chips { display:flex; flex-wrap:wrap; gap:6px; }
         .cq-pool-photo { border-radius:9px; overflow:hidden; border:2px solid #e5e7eb; cursor:pointer; transition:all 0.15s; flex-shrink:0; position:relative; }
@@ -790,6 +808,11 @@
     <!-- BEHAVIOR LIST -->
     <div id="view-behavior" class="view">
         <div id="behavior-content"></div>
+    </div>
+
+    <!-- DUPLICATE NAMES GAME -->
+    <div id="view-dupnames" class="view">
+        <div id="dupnames-content"></div>
     </div>
 
     <!-- BEHAVIOR DETAIL -->
@@ -1727,7 +1750,7 @@ let navStack = ['home'];
 function showView(name, title) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('view-' + name).classList.add('active');
-    const titles = { home:'🎓 זוכר שמות', add:'➕ הוסף תלמיד', bulk:'📁 העלאת קבוצה', gallery:'📋 תלמידים', detail:'👤 פרופיל', quiz:'📝 מבחן', rquiz:'🔍 מצא בתמונה', mquiz:'✍️ מבחן זיכרון', summary:'📊 תוצאות', classroom:'🏫 סידור כיתה', behavior:'🏆 ניקוד התנהגות', behaviorDetail:'👤 ניקוד תלמיד' };
+    const titles = { home:'🎓 זוכר שמות', add:'➕ הוסף תלמיד', bulk:'📁 העלאת קבוצה', gallery:'📋 תלמידים', detail:'👤 פרופיל', quiz:'📝 מבחן', rquiz:'🔍 מצא בתמונה', mquiz:'✍️ מבחן זיכרון', summary:'📊 תוצאות', classroom:'🏫 סידור כיתה', behavior:'🏆 ניקוד התנהגות', behaviorDetail:'👤 ניקוד תלמיד', dupnames:'👥 שמות כפולים' };
     document.getElementById('header-title').textContent = title || titles[name] || '';
     const notHome = name !== 'home';
     document.getElementById('back-btn').style.display = notHome ? 'block' : 'none';
@@ -1994,6 +2017,19 @@ function renderHome() {
         actions.appendChild(classroomBtn);
         actions.appendChild(sep7);
         actions.appendChild(behaviorBtn);
+
+        // Only offered where it applies — the action row is already crowded,
+        // and a class with no repeated first names has nothing to drill.
+        if (classHasDuplicateNames(isNone ? null : key)) {
+            const sep8 = document.createElement('div');
+            sep8.className = 'class-sep';
+            const dupBtn = document.createElement('button');
+            dupBtn.className = 'class-action-btn';
+            dupBtn.innerHTML = '👥 כפולים';
+            dupBtn.onclick = () => showDupNamesGame(isNone ? null : key);
+            actions.appendChild(sep8);
+            actions.appendChild(dupBtn);
+        }
 
         // Share button — shown for any class with students
         const clsKey = isNone ? '' : key;
@@ -2713,6 +2749,166 @@ function makeStudentCard(s) {
     card.innerHTML = `${emojiBadge}<img src="${s.photo}" alt="${s.name}"><div class="card-name">${s.name}</div><div class="card-stats">${pct}</div>`;
     card.onclick = () => showDetail(s.id);
     return card;
+}
+
+// ===== DUPLICATE NAMES GAME =====
+// Students who share a first name are the hardest to tell apart — the first
+// name alone can't identify them, only the full name can. This game drills
+// exactly those: photos of same-first-name students side by side, and the
+// full names have to be placed on the right one.
+let dupGameClass;              // the class being drilled
+let dupSelectedName = null;    // id of the name chip currently picked up
+let dupSolved = {};            // studentId -> true once placed correctly
+let dupWrongFlash = null;      // studentId briefly flashed red after a miss
+// Orders are shuffled once per game, not per render — otherwise cards and
+// chips would jump around under the user's finger on every click.
+let dupCardOrder = {};         // first name -> student ids in display order
+let dupChipOrder = [];         // student ids in name-pool display order
+
+function _shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+
+// Groups of students in this class sharing a first name (2+ per group).
+function getDuplicateNameGroups(cls) {
+    const pool = cls === undefined ? students
+               : cls === null ? students.filter(s => !s.className)
+               : students.filter(s => s.className === cls);
+    const byFirst = new Map();
+    pool.forEach(s => {
+        const first = (s.name || '').trim().split(/\s+/)[0] || '';
+        if (!first) return;
+        if (!byFirst.has(first)) byFirst.set(first, []);
+        byFirst.get(first).push(s);
+    });
+    return [...byFirst.entries()]
+        .map(([first, members]) => {
+            // Two students with the identical FULL name can't be told apart by
+            // name at all (common before last names are filled in), so the
+            // puzzle would be unwinnable — drop them rather than ask a coin flip.
+            const seen = {};
+            members.forEach(s => { const n = (s.name || '').trim(); seen[n] = (seen[n] || 0) + 1; });
+            return { first, members: members.filter(s => seen[(s.name || '').trim()] === 1) };
+        })
+        .filter(g => g.members.length > 1)
+        .sort((a, b) => a.first.localeCompare(b.first, 'he'));
+}
+function classHasDuplicateNames(cls) { return getDuplicateNameGroups(cls).length > 0; }
+
+function showDupNamesGame(cls) {
+    dupGameClass = cls;
+    const groups = getDuplicateNameGroups(cls);
+    if (!groups.length) { showToast('אין שמות כפולים בכיתה הזו'); return; }
+    _resetDupGame(groups);
+    const title = cls === undefined ? '👥 שמות כפולים' : cls === null ? '👥 שמות כפולים — ללא כיתה' : `👥 שמות כפולים — ${cls}`;
+    showView('dupnames', title);
+    renderDupNamesGame();
+}
+
+function _resetDupGame(groups) {
+    dupSelectedName = null;
+    dupSolved = {};
+    dupWrongFlash = null;
+    dupCardOrder = {};
+    groups.forEach(g => { dupCardOrder[g.first] = _shuffle(g.members).map(s => s.id); });
+    dupChipOrder = _shuffle(groups.flatMap(g => g.members)).map(s => s.id);
+}
+
+function renderDupNamesGame() {
+    const cont = document.getElementById('dupnames-content');
+    cont.innerHTML = '';
+    const groups = getDuplicateNameGroups(dupGameClass);
+    const all = groups.flatMap(g => g.members);
+    const remaining = all.filter(s => !dupSolved[s.id]);
+
+    if (!remaining.length) {
+        const done = document.createElement('div');
+        done.className = 'dup-done-banner';
+        done.innerHTML = `🎉 כל הכבוד! שיבצת נכון את כל ${all.length} השמות הכפולים`;
+        cont.appendChild(done);
+        const again = document.createElement('button');
+        again.className = 'btn-next';
+        again.textContent = '🔄 שחק שוב';
+        again.onclick = () => { _resetDupGame(groups); renderDupNamesGame(); };
+        cont.appendChild(again);
+        return;
+    }
+
+    // Name pool — full names only, since the first name can't disambiguate here
+    const poolWrap = document.createElement('div');
+    poolWrap.className = 'cq-pool-wrap';
+    const lbl = document.createElement('div');
+    lbl.className = 'cq-pool-label';
+    lbl.textContent = `בחר שם ואז לחץ על התמונה הנכונה  ·  נשארו ${remaining.length} מתוך ${all.length}`;
+    poolWrap.appendChild(lbl);
+    const chips = document.createElement('div');
+    chips.className = 'cq-name-chips';
+    dupChipOrder
+        .map(id => remaining.find(s => s.id === id))
+        .filter(Boolean)
+        .forEach(s => {
+            const chip = document.createElement('div');
+            chip.className = 'cq-name-chip' + (dupSelectedName === s.id ? ' selected' : '');
+            chip.textContent = s.name;
+            chip.onclick = () => { dupSelectedName = dupSelectedName === s.id ? null : s.id; renderDupNamesGame(); };
+            chips.appendChild(chip);
+        });
+    poolWrap.appendChild(chips);
+    cont.appendChild(poolWrap);
+
+    groups.forEach(group => {
+        const box = document.createElement('div');
+        box.className = 'dup-group';
+        const t = document.createElement('div');
+        t.className = 'dup-group-title';
+        t.textContent = `${group.first} × ${group.members.length}`;
+        box.appendChild(t);
+        const cards = document.createElement('div');
+        cards.className = 'dup-cards';
+        const order = dupCardOrder[group.first] || group.members.map(s => s.id);
+        order.map(id => group.members.find(s => s.id === id)).filter(Boolean).forEach(s => {
+            const card = document.createElement('div');
+            const solved = !!dupSolved[s.id];
+            card.className = 'dup-card' + (solved ? ' solved' : dupWrongFlash === s.id ? ' wrong' : dupSelectedName ? ' armed' : '');
+            const img = document.createElement('img');
+            img.src = _quizPhotoFor(s);
+            img.alt = '';
+            card.appendChild(img);
+            const slot = document.createElement('div');
+            slot.className = 'dup-slot';
+            slot.textContent = solved ? '✓ ' + s.name : '?';
+            card.appendChild(slot);
+            if (!solved) {
+                card.onclick = () => dupSelectedName
+                    ? checkDupAnswer(s.id)
+                    : showToast('קודם בחר שם מהרשימה למעלה');
+            }
+            cards.appendChild(card);
+        });
+        box.appendChild(cards);
+        cont.appendChild(box);
+    });
+}
+
+function checkDupAnswer(cardStudentId) {
+    const chosen = dupSelectedName;
+    if (!chosen) return;
+    if (chosen === cardStudentId) {
+        dupSolved[cardStudentId] = true;
+        dupSelectedName = null;
+        dupWrongFlash = null;
+        const s = students.find(x => x.id === cardStudentId);
+        if (s) { s.correct = (s.correct || 0) + 1; saveData(); }
+        playCorrectSound();
+        renderDupNamesGame();
+        showToast('✅ נכון!');
+    } else {
+        // Wrong: flash the card, keep the name in hand so it can be retried
+        const s = students.find(x => x.id === chosen);
+        if (s) { s.wrong = (s.wrong || 0) + 1; saveData(); }
+        dupWrongFlash = cardStudentId;
+        renderDupNamesGame();
+        showToast('❌ לא נכון, נסה שוב');
+        setTimeout(() => { dupWrongFlash = null; renderDupNamesGame(); }, 700);
+    }
 }
 
 // ===== BEHAVIOR POINTS =====
